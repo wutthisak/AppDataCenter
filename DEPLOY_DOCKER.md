@@ -13,14 +13,21 @@ MariaDB จะ import ไฟล์ในโฟลเดอร์ `docker/mariadb
 
 1. ติดตั้ง Docker และ Docker Compose
 2. Clone repo นี้
-3. แก้ค่ารหัสผ่านและ secret ใน `docker-compose.yml`
-4. รันคำสั่ง:
+3. สร้างไฟล์ `.env` จาก template แล้วแก้ค่าตามเครื่องปลายทาง:
 
 ```bash
-docker compose up -d --build
+cp .env.example .env
 ```
 
-5. เปิดเว็บ:
+4. แก้ค่าใน `.env` อย่างน้อย `APP_IMAGE`, `MARIADB_PASSWORD`, `MARIADB_ROOT_PASSWORD`, `DATABASE_URL` และ `JWT_SECRET`
+5. รันคำสั่ง:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+6. เปิดเว็บ:
 
 ```text
 http://localhost:3000
@@ -32,7 +39,8 @@ http://localhost:3000
 
 ```bash
 docker compose down -v
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 คำสั่ง `docker compose down -v` จะลบข้อมูลฐานข้อมูลเดิมทั้งหมด ใช้เฉพาะตอนต้องการเริ่มใหม่จริง ๆ
@@ -41,4 +49,20 @@ docker compose up -d --build
 
 - Startup ของ app ไม่รัน `prisma seed` แล้ว
 - ข้อมูล audit log ไม่ถูกใส่ในไฟล์ baseline data
-- ก่อนใช้งานจริงควรเปลี่ยน `MARIADB_PASSWORD`, `MARIADB_ROOT_PASSWORD`, `DATABASE_URL` และ `JWT_SECRET`
+- App ใช้ค่า `APP_IMAGE` จาก `.env` จึงไม่ต้อง build ใหม่บนเครื่องปลายทาง
+- ก่อนใช้งานจริงควรเปลี่ยน `MARIADB_PASSWORD`, `MARIADB_ROOT_PASSWORD`, `DATABASE_URL` และ `JWT_SECRET` ใน `.env`
+
+## Publish App Image
+
+ใช้เฉพาะตอนแก้โค้ดแล้วต้องการสร้าง image ใหม่และ push ขึ้น Docker Hub:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml build app
+docker compose -f docker-compose.yml -f docker-compose.build.yml push app
+```
+
+ชื่อ image ที่ build/push มาจากค่า `APP_IMAGE` ใน `.env` เช่น:
+
+```env
+APP_IMAGE=your-dockerhub-name/app-data-center:latest
+```

@@ -1,16 +1,16 @@
 services:
   db:
-    image: mariadb:11.4
+    image: ${MARIADB_IMAGE:-mariadb:11.4}
     container_name: app-data-center-db
     restart: unless-stopped
     environment:
-      MARIADB_DATABASE: app_data_center
-      MARIADB_USER: app_user
-      MARIADB_PASSWORD: app_password_change_me
-      MARIADB_ROOT_PASSWORD: root_password_change_me
-      TZ: Asia/Bangkok
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-app_data_center}
+      MARIADB_USER: ${MARIADB_USER:-app_user}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD in .env}
+      TZ: ${TZ:-Asia/Bangkok}
     ports:
-      - "3306:3306"
+      - "${DB_PORT:-3306}:3306"
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/mariadb/init:/docker-entrypoint-initdb.d:ro
@@ -21,23 +21,21 @@ services:
       retries: 10
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${APP_IMAGE:-wutthisak/app-data-center:latest}
     container_name: app-data-center-web
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: mysql://app_user:app_password_change_me@db:3306/app_data_center
-      APP_URL: http://localhost:3000
-      SERVER_ACTION_ALLOWED_ORIGINS: localhost:3000,127.0.0.1:3000
-      JWT_SECRET: change-this-to-a-long-random-secret-before-production
-      TOTP_ISSUER: App Data Center
-      TZ: Asia/Bangkok
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      SERVER_ACTION_ALLOWED_ORIGINS: ${SERVER_ACTION_ALLOWED_ORIGINS:-localhost:3000,127.0.0.1:3000}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      TOTP_ISSUER: ${TOTP_ISSUER:-App Data Center}
+      TZ: ${TZ:-Asia/Bangkok}
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
     command: npm run start
 
 volumes:
