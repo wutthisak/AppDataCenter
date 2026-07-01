@@ -1,7 +1,12 @@
 # Deploy with Docker Hub Images
 
-คู่มือนี้สำหรับนำแอปไปติดตั้งบนเครื่องอื่นโดยใช้ image จาก Docker Hub ทั้งส่วน app และ database
+คู่มือนี้สำหรับนำแอปไปติดตั้งบนเครื่องอื่นโดยใช้ image จาก Docker Hub
 ไม่ต้อง build จาก source บนเครื่องปลายทาง
+
+มี 2 รูปแบบการติดตั้ง:
+
+- ใช้ `docker-compose.yml` ที่ root project เพื่อรันทั้ง app และ MariaDB container
+- ใช้ชุด `installer/` เพื่อรันเฉพาะ app container และเชื่อมต่อ MariaDB/MySQL ภายนอก
 
 ## Images
 
@@ -17,6 +22,8 @@ MariaDB จะ import SQL อัตโนมัติเฉพาะครั้
 ค่าเริ่มต้นเก็บข้อมูลไว้ที่ `./data/mariadb` ตามตัวแปร `DB_DATA_PATH`
 
 ## Install on Another Machine
+
+ส่วนนี้สำหรับติดตั้งแบบรันทั้ง app และ database ด้วย Docker Compose ที่ root project
 
 1. ติดตั้ง Docker และ Docker Compose
 2. นำไฟล์ `docker-compose.yml` และ `.env` ไปไว้ในโฟลเดอร์เดียวกัน
@@ -50,6 +57,35 @@ docker compose up -d
 ```text
 http://localhost:3000
 ```
+
+## Install with External Database
+
+ใช้เมื่อ database ต้องแยกจาก Docker เช่น มี MariaDB/MySQL กลางอยู่แล้ว หรือฝ่ายระบบฐานข้อมูลดูแลแยกต่างหาก
+
+1. คัดลอกโฟลเดอร์ `installer/` ไปเครื่องปลายทาง
+2. เตรียม MariaDB/MySQL ภายนอก และสร้าง user ให้แอป
+3. Import SQL ตามลำดับ:
+
+```bash
+mysql --default-character-set=utf8mb4 -h db-host -u app_user -p < data/01-schema.sql
+mysql --default-character-set=utf8mb4 -h db-host -u app_user -p < data/02-baseline-data.sql
+```
+
+4. สร้าง `.env` จาก `installer/.env.example` แล้วตั้งค่าอย่างน้อย:
+
+```env
+DATABASE_URL=mysql://app_user:app_password_change_me@db-host:3306/app_data_center
+JWT_SECRET=change-this-to-a-long-random-secret
+```
+
+5. Start app จากในโฟลเดอร์ `installer/`:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+รายละเอียดเต็มอยู่ใน `installer/README.md`
 
 ## Re-import Initial SQL
 

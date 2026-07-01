@@ -1,0 +1,21 @@
+services:
+  app:
+    image: ${APP_IMAGE:-mooping/app-data-center:latest}
+    container_name: app-data-center-web
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      SERVER_ACTION_ALLOWED_ORIGINS: ${SERVER_ACTION_ALLOWED_ORIGINS:-localhost:3000,127.0.0.1:3000}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      TOTP_ISSUER: ${TOTP_ISSUER:-App Data Center}
+      TZ: ${TZ:-Asia/Bangkok}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    command: >
+      sh -c 'for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        npx prisma migrate deploy && exec npm run start;
+        echo "Waiting for database schema sync...";
+        sleep 3;
+      done;
+      exit 1'

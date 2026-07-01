@@ -1,8 +1,0 @@
-{
-  "servers": {
-    "serena": {
-      "command": "/root/.local/bin/serena",
-      "args": ["start-mcp-server"]
-    }
-  }
-}

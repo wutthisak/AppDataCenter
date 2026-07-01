@@ -3,6 +3,8 @@ node_modules
 .env
 dist
 data/
+!installer/data/
+!installer/data/*.sql
 backups/
 coverage
 playwright-report
@@ -10,4 +12,5 @@ test-results
 *.log
 *.tsbuildinfo
 .serena/
+.vscode/
 tree.txt

@@ -33,6 +33,7 @@ npm run dev
 ## Run with Docker on Ubuntu
 
 เหมาะสำหรับ Ubuntu 24 LTS ใน VMware Workstation ที่มี Docker อยู่แล้ว
+คำสั่งนี้จะรันทั้งแอปและ MariaDB container ตาม `docker-compose.yml` ที่ root project
 
 ```bash
 docker compose up -d --build
@@ -57,6 +58,25 @@ docker compose down -v
 - `MARIADB_ROOT_PASSWORD`
 - `DATABASE_URL`
 - `JWT_SECRET`
+
+## Install with External Database
+
+ถ้าต้องการให้ database แยกจาก Docker ให้ใช้ชุดติดตั้งใน `installer/`
+ภายในชุดนี้มี `docker-compose.yml` สำหรับรันเฉพาะแอป และมี SQL สำหรับ import ฐานข้อมูลอยู่ที่ `installer/data/`
+
+ขั้นตอนหลัก:
+
+1. เตรียม MariaDB/MySQL ภายนอก
+2. Import `installer/data/01-schema.sql` แล้วตามด้วย `installer/data/02-baseline-data.sql`
+3. คัดลอก `installer/.env.example` เป็น `installer/.env` แล้วตั้ง `DATABASE_URL` และ `JWT_SECRET`
+4. รันจากโฟลเดอร์ `installer/`
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+รายละเอียดเต็มอยู่ใน `installer/README.md`
 
 บัญชีตั้งต้นหลัง seed:
 
