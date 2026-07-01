@@ -5,8 +5,8 @@
 
 ## Images
 
-- App: `wutthisak/app-data-center:latest`
-- Database: `wutthisak/app-data-center-db:latest`
+- App: `mooping/app-data-center:latest`
+- Database: `mooping/app-data-center-db:latest`
 
 Database image ฝังไฟล์ SQL ตั้งต้นไว้ใน `/docker-entrypoint-initdb.d` แล้ว:
 
@@ -23,8 +23,8 @@ MariaDB จะ import SQL อัตโนมัติเฉพาะครั้
 3. สร้าง `.env` จาก `.env.example` แล้วแก้ค่าอย่างน้อย:
 
 ```env
-APP_IMAGE=wutthisak/app-data-center:latest
-MARIADB_IMAGE=wutthisak/app-data-center-db:latest
+APP_IMAGE=mooping/app-data-center:latest
+MARIADB_IMAGE=mooping/app-data-center-db:latest
 
 MARIADB_PASSWORD=change_me_app_password
 MARIADB_ROOT_PASSWORD=change_me_root_password

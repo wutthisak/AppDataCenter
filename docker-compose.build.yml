@@ -3,10 +3,10 @@ services:
     build:
       context: ./docker/mariadb
       dockerfile: Dockerfile
-    image: ${MARIADB_IMAGE:-wutthisak/app-data-center-db:latest}
+    image: ${MARIADB_IMAGE:-mooping/app-data-center-db:latest}
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${APP_IMAGE:-wutthisak/app-data-center:latest}
+    image: ${APP_IMAGE:-mooping/app-data-center:latest}

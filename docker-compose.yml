@@ -1,6 +1,6 @@
 services:
   db:
-    image: ${MARIADB_IMAGE:-wutthisak/app-data-center-db:latest}
+    image: ${MARIADB_IMAGE:-mooping/app-data-center-db:latest}
     container_name: app-data-center-db
     restart: unless-stopped
     command:
@@ -23,7 +23,7 @@ services:
       retries: 10
 
   app:
-    image: ${APP_IMAGE:-wutthisak/app-data-center:latest}
+    image: ${APP_IMAGE:-mooping/app-data-center:latest}
     container_name: app-data-center-web
     restart: unless-stopped
     depends_on:
