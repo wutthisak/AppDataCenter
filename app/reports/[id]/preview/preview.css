@@ -1,0 +1,465 @@
+/* ── Preview Page Screen Styles ─────────────────────────────────────── */
+.print-preview-page {
+  font-family: "Sarabun", "Noto Sans Thai", sans-serif;
+  background: #f1f5f9;
+  min-height: 100vh;
+  padding: 0;
+  margin: 0;
+}
+
+.preview-toolbar {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) auto auto;
+  align-items: end;
+  gap: 14px;
+  padding: 18px 32px;
+  background:
+    linear-gradient(135deg, rgba(37,99,235,0.08), rgba(20,184,166,0.08)),
+    #fff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.preview-toolbar-title {
+  min-width: 280px;
+}
+
+.preview-toolbar .eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2563eb;
+  margin-bottom: 4px;
+}
+
+.preview-toolbar h1 {
+  font-size: 22px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 2px 0;
+  line-height: 1.2;
+}
+
+.preview-toolbar p.muted {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.preview-filter-form {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.preview-filter-field {
+  display: grid;
+  gap: 4px;
+  width: 128px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.preview-filter-year {
+  width: 112px;
+}
+
+.preview-filter-field:nth-of-type(3) {
+  width: 220px;
+}
+
+.preview-filter-field:nth-of-type(4) {
+  width: 190px;
+}
+
+.preview-filter-field select,
+.preview-filter-field input {
+  height: 46px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 14px;
+  box-shadow: 0 8px 18px rgba(15,23,42,0.05);
+}
+
+.preview-actions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  flex-shrink: 0;
+}
+
+.preview-actions .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  white-space: nowrap;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.preview-filter-form .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  padding: 0 20px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  white-space: nowrap;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.preview-actions .button:not(.secondary) {
+  background: linear-gradient(135deg, #2563eb, #14b8a6);
+  color: #fff;
+  box-shadow: 0 14px 26px rgba(37,99,235,0.26);
+}
+
+.preview-actions .button:not(.secondary):hover {
+  background: linear-gradient(135deg, #1d4ed8, #0f766e);
+  transform: translateY(-1px);
+}
+
+.preview-actions .button.secondary {
+  background: #fff;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 20px rgba(15,23,42,0.08);
+}
+
+.preview-filter-form .filter-button {
+  background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+  color: #fff;
+  box-shadow: 0 14px 24px rgba(6,182,212,0.24);
+}
+
+.preview-actions .button.secondary:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.preview-filter-form .filter-button:hover {
+  background: linear-gradient(135deg, #7c3aed, #0891b2);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 1320px) {
+  .preview-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .preview-filter-form {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .preview-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* ── Print Document ─────────────────────────────────────────────────── */
+.print-document {
+  padding: 24px 32px 48px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.print-page {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  padding: 28px 28px 20px;
+  margin-bottom: 32px;
+  page-break-after: always;
+}
+
+.print-page:last-child {
+  page-break-after: auto;
+}
+
+.print-page-header {
+  position: relative;
+  text-align: center;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 2px solid #dbeafe;
+}
+
+.print-page-count {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  font-size: 11px;
+  font-weight: 800;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.print-page h2 {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 4px 0;
+}
+
+.print-period {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* ── Print Table ────────────────────────────────────────────────────── */
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  table-layout: fixed;
+  margin-bottom: 14px;
+}
+
+.print-table th,
+.print-table td {
+  border: 1px solid #cbd5e1;
+  padding: 5px 3px;
+  text-align: center;
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.print-table thead th {
+  background: #eff6ff;
+  font-weight: 800;
+  color: #1e40af;
+  font-size: 11px;
+}
+
+.print-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.print-table tbody tr:hover {
+  background: #eff6ff;
+}
+
+.print-table th.print-no,
+.print-table td.print-no {
+  width: 36px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.print-table th.print-name,
+.print-table td.print-name {
+  width: 180px;
+  text-align: left;
+  padding-left: 10px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* day columns — equally share remaining width */
+.print-table th:not(.print-no):not(.print-name),
+.print-table td:not(.print-no):not(.print-name) {
+  font-size: 10px;
+  color: #374151;
+}
+
+/* metrics table */
+.metrics-print-table th,
+.metrics-print-table td {
+  text-align: left;
+  padding: 6px 10px;
+}
+
+.metrics-print-table td:first-child {
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+/* ── Legend ──────────────────────────────────────────────────────────── */
+.print-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px 9px;
+  font-size: 11px;
+  color: #334155;
+  margin: 8px auto 0;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, #f8fafc, #eff6ff);
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  letter-spacing: 0;
+}
+
+.print-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.print-legend-item strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* ── Print Media ────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm 8mm;
+  }
+
+  .no-print,
+  .preview-toolbar {
+    display: none !important;
+  }
+
+  .print-preview-page {
+    background: #fff;
+  }
+
+  .print-document {
+    padding: 0;
+    max-width: none;
+  }
+
+  .print-page {
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 0;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .print-page--asset {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-page-header {
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+    border-bottom-color: #93c5fd;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table {
+    font-size: 8.5px;
+    margin-bottom: 0;
+  }
+
+  .print-table th,
+  .print-table td {
+    padding: 2px 1px;
+    border-color: #94a3b8;
+  }
+
+  .print-table th.print-name,
+  .print-table td.print-name {
+    width: 124px;
+    padding-left: 4px;
+  }
+
+  .print-table th.print-no,
+  .print-table td.print-no {
+    width: 24px;
+  }
+
+  .print-table thead th {
+    background: #dbeafe !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table tbody tr:nth-child(even) {
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-legend {
+    font-size: 8px;
+    gap: 2px 5px;
+    padding: 3px 5px;
+    margin-top: 4px;
+    border-radius: 6px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-legend-item strong {
+    min-width: 14px;
+    height: 14px;
+    font-size: 7px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-period {
+    font-size: 11px;
+    margin-bottom: 0;
+  }
+
+  .print-page h2 {
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+
+  .print-page-count {
+    font-size: 8px;
+    padding: 2px 6px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

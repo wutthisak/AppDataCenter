@@ -2,10 +2,11 @@ import { AppShell } from "@/components/AppShell";
 import { InspectionForm } from "@/components/InspectionForm";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { inspectionTimeSlotOrder } from "@/lib/inspection-shifts";
 
 export default async function DailyInspectionPage(
   props: {
-    searchParams: Promise<{ dataCenterId?: string; date?: string; saved?: string }>;
+    searchParams: Promise<{ dataCenterId?: string; date?: string; saved?: string; timeSlot?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -17,6 +18,9 @@ export default async function DailyInspectionPage(
 
   const selectedDataCenterId = searchParams.dataCenterId || dataCenters[0]?.id || "";
   const selectedDate = searchParams.date || new Date().toISOString().split('T')[0];
+  const selectedTimeSlot = inspectionTimeSlotOrder.includes(searchParams.timeSlot as any)
+    ? (searchParams.timeSlot as (typeof inspectionTimeSlotOrder)[number])
+    : "";
 
   const categories = await prisma.checklistCategory.findMany({
     where: { 
@@ -39,7 +43,8 @@ export default async function DailyInspectionPage(
     existingInspection = await prisma.dailyInspection.findFirst({
       where: {
         dataCenterId: selectedDataCenterId,
-        inspectionDate: new Date(selectedDate)
+        inspectionDate: new Date(selectedDate),
+        ...(selectedTimeSlot ? { timeSlot: selectedTimeSlot } : {})
       },
       orderBy: { timeSlot: "desc" },
       include: {
@@ -65,11 +70,12 @@ export default async function DailyInspectionPage(
   }
 
   return (
-    <AppShell title="ตรวจสอบห้อง Data Center" subtitle="บันทึกผลการตรวจสอบรายวัน">
+    <AppShell title="ตรวจสอบห้อง Data Center" subtitle="บันทึกผลการตรวจสอบรายวัน" variant="daily-report" hideTopbar>
       <InspectionForm
         initialDataCenters={dataCenters}
         initialSelectedDataCenterId={selectedDataCenterId}
         initialSelectedDate={selectedDate}
+        initialSelectedTimeSlot={selectedTimeSlot}
         initialCategories={categories}
         initialExistingInspection={existingInspection}
         initialExistingResults={existingResults}

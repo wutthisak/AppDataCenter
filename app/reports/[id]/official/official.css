@@ -1,0 +1,572 @@
+/* ═══════════════════════════════════════════════════════════════
+   Official Monthly Report — Screen + Print Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Screen wrapper ── */
+.official-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  font-family: "Sarabun", "Noto Sans Thai", "Prompt", sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.official-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.official-toolbar a,
+.official-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+}
+
+.official-btn-back {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.official-btn-print {
+  background: #1e3a5f;
+  color: #ffffff;
+}
+
+/* ── Document shell ── */
+.official-doc {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.08);
+  padding: 28px 36px 36px;
+}
+
+/* ── Document Header ── */
+.official-doc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #1e3a5f;
+  margin-bottom: 20px;
+}
+
+.official-doc-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.official-doc-logo {
+  width: 52px;
+  height: 52px;
+  border: 2px solid #1e3a5f;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 900;
+  color: #1e3a5f;
+  background: #eff6ff;
+  flex-shrink: 0;
+}
+
+.official-doc-org {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.official-doc-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.official-doc-subtitle {
+  font-size: 13px;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.official-doc-meta {
+  text-align: right;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.official-doc-meta strong {
+  display: block;
+  font-size: 12px;
+  color: #374151;
+}
+
+/* ── Section titles ── */
+.official-section {
+  margin-bottom: 28px;
+}
+
+.official-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e3a5f;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.official-section-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1e3a5f;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+/* ── Executive KPI grid ── */
+.official-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.official-kpi-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: #f8fafc;
+}
+
+.official-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+
+.official-kpi-value {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.official-kpi-value.green  { color: #059669; }
+.official-kpi-value.blue   { color: #2563eb; }
+.official-kpi-value.amber  { color: #d97706; }
+.official-kpi-value.red    { color: #dc2626; }
+
+/* ── Tables ── */
+.official-table-wrap {
+  overflow-x: auto;
+}
+
+.official-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.official-table th {
+  background: #1e3a5f;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.official-table th.center,
+.official-table td.center {
+  text-align: center;
+}
+
+.official-table th.right,
+.official-table td.right {
+  text-align: right;
+}
+
+.official-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.official-table tbody tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.official-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.official-pct-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.official-pct-track {
+  flex: 1;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.official-pct-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.official-pct-label {
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  min-width: 38px;
+  text-align: right;
+}
+
+/* ── Badges ── */
+.badge-warn {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-crit {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-ok {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* ── Remarks textarea ── */
+.official-remarks {
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 12px 14px;
+  min-height: 100px;
+  font-size: 12.5px;
+  color: #374151;
+  line-height: 1.7;
+  background: #fffbeb;
+}
+
+.official-remarks-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* ── Signature block ── */
+.official-sig-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.official-sig-item {
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid #1e3a5f;
+  border-radius: 6px;
+  padding: 16px 20px 18px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.official-sig-badge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  background: #1e3a5f;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.official-sig-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.official-sig-stamp-area {
+  margin: 14px auto 12px;
+  width: 88px;
+  height: 88px;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.official-sig-field-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.official-sig-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+  min-width: 44px;
+  flex-shrink: 0;
+}
+
+.official-sig-dotline {
+  flex: 1;
+  border-bottom: 1.5px dotted #94a3b8;
+  min-width: 40px;
+  height: 14px;
+  display: block;
+}
+
+/* ─── Print ─────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm;
+  }
+
+  @page {
+    @bottom-center {
+      content: "หน้า " counter(page) " / " counter(pages);
+      font-size: 8pt;
+      color: #475569;
+    }
+    @bottom-right {
+      content: "ออกรายงาน: " attr(data-generated);
+      font-size: 7pt;
+      color: #94a3b8;
+    }
+  }
+
+  :global(body) {
+    background: white !important;
+  }
+
+  :global(.app-shell-container > aside),
+  :global(.mobile-header),
+  :global(.sidebar),
+  :global(label[for="sidebar-toggle"]),
+  :global(label[for="sidebar-collapse"]),
+  :global(.app-shell-header) {
+    display: none !important;
+  }
+
+  :global(.main) {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  .official-page {
+    max-width: 100%;
+    padding: 0;
+    background: white;
+    font-family: "Sarabun", "Noto Sans Thai", sans-serif;
+  }
+
+  .official-toolbar {
+    display: none !important;
+  }
+
+  .official-doc {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .official-doc-header {
+    border-bottom: 1.5pt solid #1e3a5f;
+    padding-bottom: 8pt;
+    margin-bottom: 12pt;
+  }
+
+  .official-doc-title {
+    font-size: 14pt;
+  }
+
+  .official-doc-subtitle {
+    font-size: 10pt;
+  }
+
+  .official-section {
+    break-inside: auto;
+    page-break-inside: auto;
+    margin-bottom: 16pt;
+  }
+
+  .official-section-title {
+    font-size: 9pt;
+    border-bottom: 0.5pt solid #1e3a5f;
+  }
+
+  .official-kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6pt;
+  }
+
+  .official-kpi-card {
+    padding: 7pt 8pt;
+    border: 0.5pt solid #cbd5e1;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .official-kpi-value {
+    font-size: 16pt;
+  }
+
+  .official-table {
+    font-size: 9pt;
+    page-break-inside: auto;
+  }
+
+  .official-table tr {
+    page-break-inside: avoid;
+  }
+
+  .official-table th {
+    background: #1e3a5f !important;
+    color: #ffffff !important;
+    font-size: 8pt;
+    padding: 4pt 6pt;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .official-table td {
+    padding: 4pt 6pt;
+    font-size: 9pt;
+  }
+
+  .official-table tbody tr:nth-child(even) td {
+    background: #f8fafc !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .official-sig-row {
+    page-break-inside: avoid;
+    margin-top: 24pt;
+  }
+
+  .official-sig-item {
+    border: 0.5pt solid #cbd5e1 !important;
+    border-top: 2pt solid #1e3a5f !important;
+    background: #f8fafc !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .official-sig-badge {
+    background: #1e3a5f !important;
+    color: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .official-sig-stamp-area {
+    width: 70pt;
+    height: 70pt;
+  }
+
+  .official-sig-dotline {
+    border-bottom: 1pt dotted #94a3b8 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .official-remarks {
+    min-height: 60pt;
+    background: #fffbeb !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .badge-warn {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .badge-crit {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .badge-ok {
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

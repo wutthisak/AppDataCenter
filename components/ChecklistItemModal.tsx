@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import type { FormEvent, MouseEvent } from "react";
+import { useEffect, useId, useState } from "react";
+import { CheckCircle2, Clock3, Droplets, Save, Thermometer, X } from "lucide-react";
 
 interface ChecklistItemModalProps {
   isOpen: boolean;
@@ -13,204 +15,141 @@ interface ChecklistItemModalProps {
     estimatedDurationMin: number;
   };
   categoryId: string;
-  onSave: (data: { name: string; requiresTemperature: boolean; requiresHumidity: boolean; estimatedDurationMin: number }) => void;
+  onSave: (data: { name: string; requiresTemperature: boolean; requiresHumidity: boolean; estimatedDurationMin: number }) => Promise<void> | void;
 }
 
-export function ChecklistItemModal({ isOpen, onClose, item, categoryId, onSave }: ChecklistItemModalProps) {
+export function ChecklistItemModal({ isOpen, onClose, item, onSave }: ChecklistItemModalProps) {
   const [name, setName] = useState(item?.name || "");
   const [requiresTemperature, setRequiresTemperature] = useState(item?.requiresTemperature || false);
   const [requiresHumidity, setRequiresHumidity] = useState(item?.requiresHumidity || false);
   const [estimatedDurationMin, setEstimatedDurationMin] = useState(item?.estimatedDurationMin ?? 5);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const titleId = useId();
+  const confirmTitleId = useId();
+  const isEditing = Boolean(item);
 
-  // Reset form when item changes
   useEffect(() => {
     setName(item?.name || "");
     setRequiresTemperature(item?.requiresTemperature || false);
     setRequiresHumidity(item?.requiresHumidity || false);
     setEstimatedDurationMin(item?.estimatedDurationMin ?? 5);
-  }, [item]);
+    setConfirmOpen(false);
+  }, [item, isOpen]);
 
-  // Close on escape key
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    if (isOpen) {
-      window.addEventListener("keydown", handleEscape);
-      return () => window.removeEventListener("keydown", handleEscape);
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        if (confirmOpen) {
+          setConfirmOpen(false);
+          return;
+        }
+        onClose();
+      }
     }
-  }, [isOpen, onClose]);
+
+    if (!isOpen) return;
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [confirmOpen, isOpen, onClose]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({ name, requiresTemperature, requiresHumidity, estimatedDurationMin });
-    setName("");
-    setRequiresTemperature(false);
-    setRequiresHumidity(false);
-    setEstimatedDurationMin(5);
-  };
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!event.currentTarget.reportValidity()) return;
+    setConfirmOpen(true);
+  }
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
+  async function handleConfirmSave() {
+    setSaving(true);
+    try {
+      await onSave({ name: name.trim(), requiresTemperature, requiresHumidity, estimatedDurationMin });
+      setConfirmOpen(false);
+    } catch {
+      // Visible error notice is handled by the parent.
+    } finally {
+      setSaving(false);
     }
-  };
+  }
+
+  function handleBackdropClick(event: MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget) onClose();
+  }
 
   return (
-    <div
-      onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10000
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: "#ffffff",
-          padding: "2rem",
-          borderRadius: "8px",
-          maxWidth: "500px",
-          width: "100%",
-          margin: "1rem",
-          position: "relative",
-          boxShadow: "0 10px 25px rgba(0, 0, 0, 0.3)",
-          border: "1px solid #e5e7eb"
-        }}
-      >
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: "0.5rem",
-            right: "0.5rem",
-            background: "none",
-            border: "none",
-            fontSize: "2rem",
-            cursor: "pointer",
-            color: "#374151",
-            padding: "0",
-            lineHeight: 1,
-            width: "2.5rem",
-            height: "2.5rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "4px"
-          }}
-        >
-          ×
-        </button>
-        <h2 style={{ marginBottom: "1.5rem", marginTop: "0.5rem", color: "#111827" }}>
-          {item ? "แก้ไขรายการตรวจสอบ" : "เพิ่มรายการตรวจสอบใหม่"}
-        </h2>
+    <div className="cl-modal-overlay" onClick={handleBackdropClick}>
+      <div className="cl-modal-dialog cl-modal-dialog--wide" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => event.stopPropagation()}>
+        <div className="cl-modal-header">
+          <div>
+            <p className="cl-kicker">Checklist Item</p>
+            <h2 id={titleId}>{isEditing ? "แก้ไขรายการตรวจสอบ" : "เพิ่มรายการตรวจสอบ"}</h2>
+          </div>
+          <button type="button" className="cl-icon-button" onClick={onClose} aria-label="ปิดหน้าต่าง">
+            <X size={18} />
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold", color: "#374151" }}>
-              ชื่อรายการ
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  backgroundColor: "#ffffff",
-                  color: "#111827",
-                  fontSize: "1rem",
-                  marginTop: "0.25rem"
-                }}
-              />
+          <div className="cl-modal-body">
+            <label className="cl-field">
+              ชื่อรายการตรวจสอบ
+              <input value={name} onChange={(event) => setName(event.target.value)} required autoFocus placeholder="เช่น ตรวจอุณหภูมิหน้า rack" />
             </label>
-          </div>
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "bold", color: "#374151" }}>
-              <input
-                type="checkbox"
-                checked={requiresTemperature}
-                onChange={(e) => setRequiresTemperature(e.target.checked)}
-                style={{ width: "1rem", height: "1rem" }}
-              />
-              บันทึกอุณหภูมิ
-            </label>
-          </div>
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "bold", color: "#374151" }}>
-              <input
-                type="checkbox"
-                checked={requiresHumidity}
-                onChange={(e) => setRequiresHumidity(e.target.checked)}
-                style={{ width: "1rem", height: "1rem" }}
-              />
-              บันทึกความชื้น
-            </label>
-          </div>
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold", color: "#374151" }}>
-              เวลาโดยประมาณ (นาที)
+
+            <div className="cl-option-grid">
+              <label className={`cl-option-card ${requiresTemperature ? "is-selected" : ""}`}>
+                <input type="checkbox" checked={requiresTemperature} onChange={(event) => setRequiresTemperature(event.target.checked)} />
+                <span><Thermometer size={18} /></span>
+                <strong>บันทึกอุณหภูมิ</strong>
+              </label>
+              <label className={`cl-option-card ${requiresHumidity ? "is-selected" : ""}`}>
+                <input type="checkbox" checked={requiresHumidity} onChange={(event) => setRequiresHumidity(event.target.checked)} />
+                <span><Droplets size={18} /></span>
+                <strong>บันทึกความชื้น</strong>
+              </label>
+            </div>
+
+            <label className="cl-field">
+              <span className="cl-field-label-icon"><Clock3 size={16} /> เวลาโดยประมาณ (นาที)</span>
               <input
                 type="number"
                 min={1}
                 max={480}
                 value={estimatedDurationMin}
-                onChange={(e) => setEstimatedDurationMin(Math.max(1, parseInt(e.target.value) || 5))}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  backgroundColor: "#ffffff",
-                  color: "#111827",
-                  fontSize: "1rem",
-                  marginTop: "0.25rem"
-                }}
+                onChange={(event) => setEstimatedDurationMin(Math.max(1, parseInt(event.target.value, 10) || 5))}
               />
+              <small>ใช้คำนวณ workload โดยประมาณของรายการนี้</small>
             </label>
-            <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem", color: "#6b7280" }}>ค่าเริ่มต้น 5 นาที — ใช้คำนวณ Estimated Workload เท่านั้น</p>
           </div>
-          <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: "0.5rem 1rem",
-                cursor: "pointer",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                backgroundColor: "#ffffff",
-                color: "#374151"
-              }}
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="submit"
-              style={{
-                padding: "0.5rem 1rem",
-                cursor: "pointer",
-                border: "none",
-                borderRadius: "4px",
-                backgroundColor: "#2563eb",
-                color: "#ffffff"
-              }}
-            >
-              บันทึก
+
+          <div className="cl-modal-footer">
+            <button type="button" className="button secondary" onClick={onClose}>ยกเลิก</button>
+            <button type="submit" className="button">
+              <Save size={16} />
+              {isEditing ? "บันทึกการแก้ไข" : "สร้างรายการ"}
             </button>
           </div>
         </form>
+
+        {confirmOpen ? (
+          <div className="cl-confirm-backdrop">
+            <div className="cl-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby={confirmTitleId}>
+              <button type="button" className="cl-confirm-close" onClick={() => setConfirmOpen(false)} aria-label="ปิดหน้าต่างยืนยัน">
+                <X size={17} />
+              </button>
+              <div className="cl-confirm-icon cl-confirm-icon--success"><CheckCircle2 size={28} /></div>
+              <h3 id={confirmTitleId}>{isEditing ? "ยืนยันการบันทึกรายการ" : "ยืนยันการสร้างรายการ"}</h3>
+              <p>{isEditing ? `ระบบจะอัปเดตรายการ ${item?.name ?? ""}` : "ระบบจะเพิ่มรายการตรวจสอบใหม่ลงในหมวดหมู่ที่เลือก"}</p>
+              <div className="cl-confirm-actions">
+                <button type="button" className="button secondary" onClick={() => setConfirmOpen(false)} disabled={saving}>ยกเลิก</button>
+                <button type="button" className="button" onClick={handleConfirmSave} disabled={saving}>
+                  {saving ? "กำลังบันทึก..." : "ยืนยันบันทึก"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -117,7 +117,7 @@ export default async function MetricsRecordingPage(
   const displayDate = new Date(recordDate).toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   return (
-    <AppShell title="Server Metrics" subtitle="บันทึก CPU / RAM / Disk — Daily Shared Recording">
+    <AppShell title="Server Metrics" subtitle="บันทึก CPU / RAM / Disk — Daily Shared Recording" hideTopbar>
       {/* Header: Type & Date selector */}
       <section style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>📊 Server Metrics — {categoryLabels[categoryCode]}</h2>

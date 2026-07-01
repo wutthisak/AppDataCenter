@@ -6,6 +6,7 @@ export const categoryLabels: Record<AssetCategoryCode, string> = {
   VM: "ตรวจสอบ VM Host",
   SERVER: "ตรวจสอบ Host Server",
   NETWORK: "ตรวจสอบ Network Device",
+  STORAGE: "ตรวจสอบ Storage Device",
   BACKUP: "ตรวจสอบ Database"
 };
 
@@ -13,6 +14,7 @@ export const assetAccountLabels: Record<AssetCategoryCode, string> = {
   VM: "บัญชีทรัพย์สิน VM Host",
   SERVER: "บัญชีทรัพย์สิน Host Server",
   NETWORK: "บัญชีทรัพย์สิน Network Device",
+  STORAGE: "บัญชีทรัพย์สิน Storage Device",
   BACKUP: "บัญชีทรัพย์สิน Database"
 };
 
@@ -20,6 +22,7 @@ export const categoryDescriptions: Record<AssetCategoryCode, string> = {
   VM: "ตรวจสอบ VM Host พร้อม CPU, RAM และ DISK",
   SERVER: "ตรวจสอบ Host Server พร้อม CPU, RAM, DISK และเลขครุภัณฑ์",
   NETWORK: "ตรวจสอบ Network Device พร้อมรุ่น ยี่ห้อ IP สถานที่ อาคาร และชั้น",
+  STORAGE: "ตรวจสอบ Storage Device พร้อมประเภทอุปกรณ์ ความจุ IP และ Data Center",
   BACKUP: "ตรวจสอบสถานะ Database"
 };
 

@@ -1,36 +1,9 @@
-import { PrismaClient, Role, AssetOptionType } from "@prisma/client";
+import { AssetCategoryCode, PrismaClient, Role, AssetOptionType } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const vmAssets = [
-  "API-LABUBON", "API-Manage", "API-node1", "API-node1", "BMC", "BunkerWeb-01",
-  "CardioSRV", "Control-Cluster", "Daychaserver", "DB01", "DB02", "DC1", "DC2",
-  "DHC01", "DMS-API", "eSight-A", "eSight-A", "HPE_SSMC", "ILO Amplifier",
-  "ImageSRV01", "intra", "Jaynlab", "Mail", "MySQL-Master1", "Nginx-Proxy01",
-  "Nginx-Proxy02", "NodeJs01", "NodeJs02", "NPS01", "NPS02", "PFRadius",
-  "Programmer-CNT", "Proxy-web", "R-LB01", "R-LB02", "Research_SRV", "RFIDW10",
-  "saph2", "SPS-Radius01", "SQLSRV1", "SQLSRV2", "SQLSRV4", "tomcat",
-  "UbonSystem", "Web-MEC", "Web-Service-OLD", "Web-SunpasitNEW", "WebMedia",
-  "WebService", "WebSunpasit", "MQTT01-SRV"
-];
-
-const serverAssets = [
-  "esxi-b1", "esxi-b2", "esxi-b3", "esxi-b4", "esxi-b9",
-  "esxi-b10", "esxi-b11", "esxi-b12", "esxi-b13", "spsexpress"
-];
-
-const networkAssets = [
-  "WLC-Huewei-SPS", "WLC-Huewei", "WLC-Cisco", "CoreNetwork-SPS",
-  "CoreNetwork-SCH", "Link Internet WAN1", "Link Internet WAN2", "Link Internet WAN3"
-];
-
-const backupAssets = [
-  "BackOffice", "ERP", "HBAC", "HOMC", "HOMCPICT", "INV", "Invdent",
-  "LABINF", "Pharms", "Pm2014", "powerbi", "PT", "sittibat", "TMAIS"
-];
-
-async function upsertCategory(code: "VM" | "SERVER" | "NETWORK" | "BACKUP", name: string, displayOrder: number) {
+async function upsertCategory(code: AssetCategoryCode, name: string, displayOrder: number) {
   return prisma.assetCategory.upsert({
     where: { code },
     update: { name, displayOrder },
@@ -51,24 +24,93 @@ async function upsertAssetOption(type: AssetOptionType, value: string, displayOr
   });
 }
 
-async function seedAssets(categoryId: string, names: string[]) {
-  for (const [index, name] of names.entries()) {
-    await prisma.asset.upsert({
-      where: {
-        categoryId_displayOrder: {
-          categoryId,
-          displayOrder: index + 1
-        }
-      },
-      update: { name, active: true },
-      create: {
-        categoryId,
-        name,
-        displayOrder: index + 1,
-        active: true
-      }
+async function upsertInspectionPolicy(
+  categoryKey: string,
+  categoryLabel: string,
+  minRoundsPerDay: number,
+  requiredShifts: string,
+  displayOrder: number
+) {
+  await prisma.inspectionPolicy.upsert({
+    where: { categoryKey },
+    update: { categoryLabel, minRoundsPerDay, requiredShifts, active: true, displayOrder },
+    create: { categoryKey, categoryLabel, minRoundsPerDay, requiredShifts, active: true, displayOrder }
+  });
+}
+
+async function seedNetworkDeviceTypes() {
+  const networkCategory = await prisma.assetCategory.findUnique({ where: { code: "NETWORK" } });
+  if (!networkCategory) return;
+
+  await prisma.asset.updateMany({
+    where: {
+      categoryId: networkCategory.id,
+      deviceType: null,
+      name: { startsWith: "CoreNetwork" }
+    },
+    data: { deviceType: "Switch" }
+  });
+
+  await prisma.asset.updateMany({
+    where: {
+      categoryId: networkCategory.id,
+      deviceType: null,
+      name: { startsWith: "WLC" }
+    },
+    data: { deviceType: "Access point" }
+  });
+
+  await prisma.asset.updateMany({
+    where: {
+      categoryId: networkCategory.id,
+      deviceType: null,
+      name: { startsWith: "Link Internet" }
+    },
+    data: { deviceType: "Router" }
+  });
+}
+
+async function repairFutureInstalledDates() {
+  const threshold = new Date();
+  threshold.setFullYear(threshold.getFullYear() + 100);
+
+  const assets = await prisma.asset.findMany({
+    where: { installedAt: { gt: threshold } },
+    select: { id: true, installedAt: true }
+  });
+
+  for (const asset of assets) {
+    if (!asset.installedAt) continue;
+    const repaired = new Date(asset.installedAt);
+    repaired.setUTCFullYear(repaired.getUTCFullYear() - 543);
+    await prisma.asset.update({
+      where: { id: asset.id },
+      data: { installedAt: repaired }
     });
   }
+}
+
+async function removeGeneratedBackupInspectionAssets() {
+  const generatedAssets = await prisma.asset.findMany({
+    where: {
+      category: { code: "BACKUP" },
+      OR: [
+        { displayOrder: { gte: 100000 } },
+        { code: { startsWith: "BACKUP_JOB:" } },
+        { code: { startsWith: "BACKUP_JOB_ITEM:" } }
+      ]
+    },
+    select: { id: true }
+  });
+
+  const assetIds = generatedAssets.map((asset) => asset.id);
+  if (assetIds.length === 0) return;
+
+  await prisma.dailyStatusEntry.deleteMany({ where: { assetId: { in: assetIds } } });
+  await prisma.serverMetricLog.deleteMany({ where: { serverAssetId: { in: assetIds } } });
+  await prisma.serverDiskDetail.deleteMany({ where: { metricEntry: { assetId: { in: assetIds } } } });
+  await prisma.serverMetricEntry.deleteMany({ where: { assetId: { in: assetIds } } });
+  await prisma.asset.deleteMany({ where: { id: { in: assetIds } } });
 }
 
 type ChecklistSeedCategory = {
@@ -152,13 +194,24 @@ async function main() {
     }
   });
 
-  const vm = await upsertCategory("VM", "Virtual Machines", 1);
-  const server = await upsertCategory("SERVER", "Physical / Host Servers", 2);
-  const network = await upsertCategory("NETWORK", "Network Systems", 3);
-  const backup = await upsertCategory("BACKUP", "Database Backup", 4);
+  await upsertCategory("VM", "Virtual Machines", 1);
+  await upsertCategory("SERVER", "Physical / Host Servers", 2);
+  await upsertCategory("NETWORK", "Network Systems", 3);
+  await upsertCategory("STORAGE", "Storage Devices", 4);
+  await upsertCategory("BACKUP", "Database Backup", 5);
+  await upsertInspectionPolicy("VM", "VM Host", 6, "ALL", 1);
+  await upsertInspectionPolicy("SERVER", "Host Server", 6, "ALL", 2);
+  await upsertInspectionPolicy("NETWORK", "Network Device", 6, "ALL", 3);
+  await upsertInspectionPolicy("STORAGE", "Storage Device", 6, "ALL", 4);
+  await upsertInspectionPolicy("BACKUP", "Backup / Database", 6, "ALL", 5);
+  await upsertInspectionPolicy("DC_ROOM", "Data Center Room", 2, "MORNING_SHIFT,AFTERNOON_SHIFT", 6);
+  await removeGeneratedBackupInspectionAssets();
 
   const databaseTypes = ["MySQL", "SQL Server", "PostgreSQL", "Oracle", "MariaDB", "MongoDB", "Redis"];
   const osTypes = ["Windows", "Ubuntu", "Rocky", "CentOS", "Red Hat", "Debian"];
+  const deviceTypes = ["Switch", "Access point", "Router", "Firewall"];
+  const storageDeviceTypes = ["SAN", "NAS", "External USB"];
+  const ownershipTypes = ["เช่า", "ซื้อ"];
 
   for (const [index, value] of databaseTypes.entries()) {
     await upsertAssetOption(AssetOptionType.DATABASE_TYPE, value, index + 1);
@@ -168,10 +221,20 @@ async function main() {
     await upsertAssetOption(AssetOptionType.OS_TYPE, value, index + 1);
   }
 
-  await seedAssets(vm.id, vmAssets);
-  await seedAssets(server.id, serverAssets);
-  await seedAssets(network.id, networkAssets);
-  await seedAssets(backup.id, backupAssets);
+  for (const [index, value] of deviceTypes.entries()) {
+    await upsertAssetOption(AssetOptionType.DEVICE_TYPE, value, index + 1);
+  }
+
+  for (const [index, value] of storageDeviceTypes.entries()) {
+    await upsertAssetOption(AssetOptionType.STORAGE_DEVICE_TYPE, value, index + 1);
+  }
+
+  for (const [index, value] of ownershipTypes.entries()) {
+    await upsertAssetOption(AssetOptionType.ASSET_OWNERSHIP_TYPE, value, index + 1);
+  }
+
+  await seedNetworkDeviceTypes();
+  await repairFutureInstalledDates();
 
   // Seed Data Centers
   const dc1 = await prisma.dataCenter.upsert({

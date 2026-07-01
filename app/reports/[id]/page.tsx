@@ -72,13 +72,23 @@ export default async function ReportDetailPage(
           {report.status !== "DRAFT" ? <span className={"badge " + (locked ? "locked" : "")}>{report.status}</span> : null}
           {report.reviewerName ? <span className="muted"> บันทึกโดย {report.reviewerName}</span> : null}
         </div>
-        <Link
-          className="button secondary"
-          href={"/reports/" + report.id + "/preview" + (selectedCategoryCode ? "?category=" + selectedCategoryCode : "")}
-          target="_blank"
-        >
-          ดูตัวอย่างก่อนพิมพ์
-        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link
+            className="button secondary"
+            href={"/reports/" + report.id + "/preview" + (selectedCategoryCode ? "?category=" + selectedCategoryCode : "")}
+            target="_blank"
+          >
+            ดูตัวอย่างก่อนพิมพ์
+          </Link>
+          <Link
+            className="button"
+            href={"/reports/" + report.id + "/official"}
+            target="_blank"
+            style={{ background: "#1e3a5f", color: "#fff" }}
+          >
+            📋 รายงานทางการ
+          </Link>
+        </div>
       </div>
 
       {reviewable ? (

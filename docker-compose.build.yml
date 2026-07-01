@@ -1,4 +1,10 @@
 services:
+  db:
+    build:
+      context: ./docker/mariadb
+      dockerfile: Dockerfile
+    image: ${MARIADB_IMAGE:-wutthisak/app-data-center-db:latest}
+
   app:
     build:
       context: .

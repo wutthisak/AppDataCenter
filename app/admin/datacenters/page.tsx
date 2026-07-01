@@ -10,7 +10,7 @@ export default async function DataCentersAdminPage() {
   });
 
   return (
-    <AppShell title="จัดการ Data Center" subtitle="เพิ่ม แก้ไข และจัดการห้อง Data Center">
+    <AppShell title="จัดการ Data Center" subtitle="เพิ่ม แก้ไข และควบคุมสถานะห้อง Data Center">
       <DataCentersTable initialDataCenters={dataCenters} />
     </AppShell>
   );

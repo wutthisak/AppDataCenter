@@ -74,14 +74,16 @@ export async function getCurrentUser() {
       email: true,
       phone: true,
       defaultShift: true,
-      twoFactorEnabled: true
+      twoFactorEnabled: true,
+      mustChangePassword: true
     }
   });
 }
 
-export async function requireUser(roles?: Role[]) {
+export async function requireUser(roles?: Role[], options?: { allowPasswordChange?: boolean }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.mustChangePassword && !options?.allowPasswordChange) redirect("/profile?forcePassword=1");
   if (roles && !roles.includes(user.role)) redirect("/");
   return user;
 }

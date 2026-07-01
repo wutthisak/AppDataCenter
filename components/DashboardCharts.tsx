@@ -162,3 +162,71 @@ export function DiskTrendChart({
     </ResponsiveContainer>
   );
 }
+
+export function OperationsTrendChart({
+  data,
+  height = 260
+}: {
+  data: { date: string; statusRecords: number; issues: number; metrics: number; inspections: number }[];
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 12, right: 12, left: -8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+        <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+        <Tooltip
+          contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13 }}
+          formatter={(value, name) => {
+            const labels: Record<string, string> = {
+              statusRecords: "บันทึกสถานะ",
+              issues: "ประเด็นผิดปกติ",
+              metrics: "ทรัพยากรระบบ",
+              inspections: "การตรวจห้อง"
+            };
+            return [value, labels[String(name)] ?? name];
+          }}
+        />
+        <Legend />
+        <Bar dataKey="statusRecords" name="บันทึกสถานะ" fill="#2563eb" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="metrics" name="ทรัพยากรระบบ" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="inspections" name="การตรวจห้อง" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="issues" name="ผิดปกติ" fill="#ef4444" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function ResourceAverageChart({
+  data,
+  height = 260
+}: {
+  data: { date: string; cpu: number; ram: number; disk: number }[];
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 12, right: 16, left: -8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} />
+        <Tooltip
+          contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13 }}
+          formatter={(value, name) => {
+            const labels: Record<string, string> = {
+              cpu: "CPU",
+              ram: "RAM",
+              disk: "Disk"
+            };
+            return [`${value}%`, labels[String(name)] ?? name];
+          }}
+        />
+        <Legend />
+        <Line type="monotone" dataKey="cpu" name="CPU" stroke="#f97316" strokeWidth={2.5} dot={{ r: 2 }} connectNulls />
+        <Line type="monotone" dataKey="ram" name="RAM" stroke="#7c3aed" strokeWidth={2.5} dot={{ r: 2 }} connectNulls />
+        <Line type="monotone" dataKey="disk" name="Disk" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 2 }} connectNulls />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}

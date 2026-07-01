@@ -11,7 +11,7 @@ export default async function ChecklistAdminPage() {
   });
 
   return (
-    <AppShell title="จัดการ Checklist" subtitle="เพิ่ม แก้ไข และจัดการหมวดหมู่และรายการตรวจสอบตาม Data Center">
+    <AppShell title="จัดการ Checklist" subtitle="เพิ่ม แก้ไข และควบคุมหมวดหมู่กับรายการตรวจสอบตาม Data Center">
       <ChecklistAdmin initialDataCenters={dataCenters} />
     </AppShell>
   );

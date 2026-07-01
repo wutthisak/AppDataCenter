@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import type { FormEvent, MouseEvent } from "react";
+import { useEffect, useId, useState } from "react";
+import { Building2, CheckCircle2, MapPin, Save, X } from "lucide-react";
 
 interface DataCenterModalProps {
   isOpen: boolean;
@@ -11,199 +13,139 @@ interface DataCenterModalProps {
     location: string | null;
     description: string | null;
   };
-  onSave: (data: { name: string; location: string; description: string }) => void;
+  onSave: (data: { name: string; location: string; description: string }) => Promise<void> | void;
 }
 
 export function DataCenterModal({ isOpen, onClose, dataCenter, onSave }: DataCenterModalProps) {
   const [name, setName] = useState(dataCenter?.name || "");
   const [location, setLocation] = useState(dataCenter?.location || "");
   const [description, setDescription] = useState(dataCenter?.description || "");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const titleId = useId();
+  const confirmTitleId = useId();
 
-  // Reset form when dataCenter changes
   useEffect(() => {
     setName(dataCenter?.name || "");
     setLocation(dataCenter?.location || "");
     setDescription(dataCenter?.description || "");
-  }, [dataCenter]);
+    setConfirmOpen(false);
+    setSaving(false);
+  }, [dataCenter, isOpen]);
 
-  // Close on escape key
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    if (!isOpen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (confirmOpen) setConfirmOpen(false);
+        else onClose();
+      }
     };
-    if (isOpen) {
-      window.addEventListener("keydown", handleEscape);
-      return () => window.removeEventListener("keydown", handleEscape);
-    }
-  }, [isOpen, onClose]);
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [confirmOpen, isOpen, onClose]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({ name, location, description });
-    setName("");
-    setLocation("");
-    setDescription("");
-  };
+  const isEditing = Boolean(dataCenter);
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!event.currentTarget.reportValidity()) return;
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirmSave() {
+    setSaving(true);
+    try {
+      await onSave({ name: name.trim(), location: location.trim(), description: description.trim() });
+      setConfirmOpen(false);
+    } catch {
+      // Parent component shows the visible error notice.
+    } finally {
+      setSaving(false);
     }
-  };
+  }
+
+  function handleBackdropClick(event: MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget) onClose();
+  }
 
   return (
-    <div
-      className="modal-backdrop"
-      onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10000
-      }}
-    >
-      <div
-        className="modal-content"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: "#ffffff",
-          padding: "2rem",
-          borderRadius: "8px",
-          maxWidth: "500px",
-          width: "100%",
-          margin: "1rem",
-          position: "relative",
-          boxShadow: "0 10px 25px rgba(0, 0, 0, 0.3)",
-          border: "1px solid #e5e7eb"
-        }}
-      >
-        <button
-          className="modal-close"
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: "0.5rem",
-            right: "0.5rem",
-            background: "none",
-            border: "none",
-            fontSize: "2rem",
-            cursor: "pointer",
-            color: "#374151",
-            padding: "0",
-            lineHeight: 1,
-            width: "2.5rem",
-            height: "2.5rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "4px"
-          }}
-        >
-          ×
-        </button>
-        <h2 style={{ marginBottom: "1.5rem", marginTop: "0.5rem", color: "#111827" }}>
-          {dataCenter ? "แก้ไข Data Center" : "เพิ่ม Data Center ใหม่"}
-        </h2>
+    <div className="dc-modal-overlay" onMouseDown={handleBackdropClick}>
+      <div className="dc-modal-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="dc-modal-header">
+          <div>
+            <p className="dc-kicker">{isEditing ? "Edit Data Center" : "New Data Center"}</p>
+            <h2 id={titleId}>
+              <Building2 size={20} />
+              {isEditing ? "แก้ไข Data Center" : "เพิ่ม Data Center ใหม่"}
+            </h2>
+          </div>
+          <button type="button" className="dc-icon-button" onClick={onClose} aria-label="ปิด">
+            <X size={18} />
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold", color: "#374151" }}>
-              ชื่อ Data Center
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  backgroundColor: "#ffffff",
-                  color: "#111827",
-                  fontSize: "1rem",
-                  marginTop: "0.25rem"
-                }}
-              />
-            </label>
+          <div className="dc-modal-body">
+            <div className="dc-modal-hero">
+              <div className="dc-modal-mark"><MapPin size={24} /></div>
+              <div>
+                <div className="dc-modal-title">{isEditing ? dataCenter?.name : "ข้อมูลห้อง Data Center"}</div>
+                <div className="dc-modal-subtitle">ระบุชื่อ สถานที่ และรายละเอียดที่ใช้ในหน้าตรวจสอบประจำวัน</div>
+              </div>
+            </div>
+
+            <div className="dc-modal-grid">
+              <label>
+                ชื่อ Data Center
+                <input value={name} onChange={(event) => setName(event.target.value)} required autoFocus placeholder="เช่น DC Site A" />
+              </label>
+              <label>
+                สถานที่
+                <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="อาคาร / ชั้น / ห้อง" />
+              </label>
+              <label className="dc-field-wide">
+                คำอธิบาย
+                <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="รายละเอียดเพิ่มเติมของห้อง Data Center" />
+              </label>
+            </div>
           </div>
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold", color: "#374151" }}>
-              ที่ตั้ง
-              <input
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  backgroundColor: "#ffffff",
-                  color: "#111827",
-                  fontSize: "1rem",
-                  marginTop: "0.25rem"
-                }}
-              />
-            </label>
-          </div>
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold", color: "#374151" }}>
-              คำอธิบาย
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  backgroundColor: "#ffffff",
-                  color: "#111827",
-                  fontSize: "1rem",
-                  marginTop: "0.25rem"
-                }}
-              />
-            </label>
-          </div>
-          <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: "0.5rem 1rem",
-                cursor: "pointer",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                backgroundColor: "#ffffff",
-                color: "#374151"
-              }}
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="submit"
-              style={{
-                padding: "0.5rem 1rem",
-                cursor: "pointer",
-                border: "none",
-                borderRadius: "4px",
-                backgroundColor: "#2563eb",
-                color: "#ffffff"
-              }}
-            >
-              บันทึก
+
+          <div className="dc-modal-footer">
+            <button type="button" className="button secondary" onClick={onClose}>ยกเลิก</button>
+            <button type="submit" className="button">
+              <Save size={16} />
+              {isEditing ? "บันทึกการแก้ไข" : "สร้าง Data Center"}
             </button>
           </div>
         </form>
+
+        {confirmOpen ? (
+          <div className="dc-confirm-backdrop">
+            <div className="dc-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby={confirmTitleId}>
+              <button type="button" className="dc-confirm-close" onClick={() => setConfirmOpen(false)} aria-label="ปิดหน้าต่างยืนยัน">
+                <X size={17} />
+              </button>
+              <div className="dc-confirm-icon dc-confirm-icon--success"><CheckCircle2 size={28} /></div>
+              <h3 id={confirmTitleId}>{isEditing ? "ยืนยันการบันทึกข้อมูล" : "ยืนยันการสร้าง Data Center"}</h3>
+              <p>
+                {isEditing
+                  ? `ระบบจะอัปเดตข้อมูลของ ${dataCenter?.name ?? "Data Center"} ตามค่าที่กรอกไว้`
+                  : "ระบบจะเพิ่ม Data Center ใหม่และนำไปใช้กับงานตรวจสอบประจำวัน"}
+              </p>
+              <div className="dc-confirm-actions">
+                <button type="button" className="button secondary" onClick={() => setConfirmOpen(false)} disabled={saving}>ยกเลิก</button>
+                <button type="button" className="button" onClick={handleConfirmSave} disabled={saving}>
+                  {saving ? "กำลังบันทึก..." : "ยืนยันบันทึก"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

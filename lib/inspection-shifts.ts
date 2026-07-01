@@ -81,3 +81,70 @@ export const shiftDefaultSlots: Record<InspectionShiftKey, InspectionTimeSlotKey
   AFTERNOON_SHIFT: ["SLOT_1600_1700", "SLOT_1700_1800", "SLOT_1800_1900", "SLOT_1900_2000", "SLOT_2000_2100", "SLOT_2100_2200", "SLOT_2200_2300", "SLOT_2300_2400"],
   NIGHT_SHIFT:     ["SLOT_0000_0100", "SLOT_0100_0200", "SLOT_0200_0300", "SLOT_0300_0400", "SLOT_0400_0500", "SLOT_0500_0600", "SLOT_0600_0700", "SLOT_0700_0800"]
 };
+
+export type WorkloadShiftKey = "MORNING" | "AFTERNOON" | "NIGHT";
+
+export function isInspectionTimeSlotKey(value: unknown): value is InspectionTimeSlotKey {
+  return typeof value === "string" && (inspectionTimeSlotOrder as readonly string[]).includes(value);
+}
+
+export function getShiftForTimeSlot(value: unknown): InspectionShiftKey {
+  if (!isInspectionTimeSlotKey(value)) return "OFFICE_HOURS";
+  if (shiftDefaultSlots.AFTERNOON_SHIFT.includes(value)) return "AFTERNOON_SHIFT";
+  if (shiftDefaultSlots.NIGHT_SHIFT.includes(value)) return "NIGHT_SHIFT";
+  return "OFFICE_HOURS";
+}
+
+export function getWorkloadShiftForHour(hour: number): WorkloadShiftKey {
+  if (hour >= 16 && hour < 24) return "AFTERNOON";
+  if (hour >= 8 && hour < 16) return "MORNING";
+  return "NIGHT";
+}
+
+export function getWorkloadShiftForDateTime(value: Date | string | null | undefined): WorkloadShiftKey | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return getWorkloadShiftForHour(date.getHours());
+}
+
+export function getWorkloadShiftForTimeSlot(value: unknown): WorkloadShiftKey {
+  const shift = getShiftForTimeSlot(value);
+  if (shift === "AFTERNOON_SHIFT") return "AFTERNOON";
+  if (shift === "NIGHT_SHIFT") return "NIGHT";
+  return "MORNING";
+}
+
+export function getCurrentInspectionTimeSlot(now = new Date()): InspectionTimeSlotKey {
+  const hour = now.getHours();
+  if (hour === 0) return "SLOT_0000_0100";
+  if (hour === 1) return "SLOT_0100_0200";
+  if (hour === 2) return "SLOT_0200_0300";
+  if (hour === 3) return "SLOT_0300_0400";
+  if (hour === 4) return "SLOT_0400_0500";
+  if (hour === 5) return "SLOT_0500_0600";
+  if (hour === 6) return "SLOT_0600_0700";
+  if (hour === 7) return "SLOT_0700_0800";
+  if (hour === 8) return "SLOT_0800_0900";
+  if (hour === 9 || hour === 10) return "SLOT_0900_1000";
+  if (hour === 11 || hour === 12) return "SLOT_1100_1200";
+  if (hour === 13) return "SLOT_1300_1400";
+  if (hour === 14) return "SLOT_1400_1500";
+  if (hour === 15) return "SLOT_1500_1600";
+  if (hour === 16) return "SLOT_1600_1700";
+  if (hour === 17) return "SLOT_1700_1800";
+  if (hour === 18) return "SLOT_1800_1900";
+  if (hour === 19) return "SLOT_1900_2000";
+  if (hour === 20) return "SLOT_2000_2100";
+  if (hour === 21) return "SLOT_2100_2200";
+  if (hour === 22) return "SLOT_2200_2300";
+  return "SLOT_2300_2400";
+}
+
+export function getDefaultInspectionSelection(preferredSlot?: unknown) {
+  const timeSlot = isInspectionTimeSlotKey(preferredSlot) ? preferredSlot : getCurrentInspectionTimeSlot();
+  return {
+    timeSlot,
+    shift: getShiftForTimeSlot(timeSlot)
+  };
+}

@@ -8,6 +8,9 @@ export function BulkDayStatusForm({
   categoryCode,
   day,
   timeSlot,
+  inspectionShift,
+  durationMinutes,
+  inspectedAt,
   options,
   returnTo
 }: {
@@ -15,6 +18,9 @@ export function BulkDayStatusForm({
   categoryCode: AssetCategoryCode;
   day: number;
   timeSlot?: string;
+  inspectionShift?: string;
+  durationMinutes?: number;
+  inspectedAt?: string;
   options: AssetStatusCode[];
   returnTo: string;
 }) {
@@ -26,6 +32,9 @@ export function BulkDayStatusForm({
       <input type="hidden" name="returnTo" value={returnTo} />
       <input type="hidden" name="applyAllActive" value="true" />
       {timeSlot ? <input type="hidden" name="timeSlots" value={timeSlot} /> : null}
+      {inspectionShift ? <input type="hidden" name="inspectionShift" value={inspectionShift} /> : null}
+      {durationMinutes ? <input type="hidden" name="durationMinutes" value={durationMinutes} /> : null}
+      {inspectedAt ? <input type="hidden" name="inspectedAt" value={inspectedAt} /> : null}
       <select
         className="status-select bulk-day-select"
         name="statusCode"

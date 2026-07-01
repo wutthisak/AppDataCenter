@@ -11,7 +11,7 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `app_data_center` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `app_data_center` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */;
 
 USE `app_data_center`;
 DROP TABLE IF EXISTS `ActivityLog`;
@@ -66,6 +66,7 @@ CREATE TABLE `Asset` (
   `assetNumber` varchar(191) DEFAULT NULL,
   `ipAddress` varchar(191) DEFAULT NULL,
   `location` varchar(191) DEFAULT NULL,
+  `ownershipType` varchar(191) DEFAULT NULL,
   `building` varchar(191) DEFAULT NULL,
   `floor` varchar(191) DEFAULT NULL,
   `installedAt` datetime(3) DEFAULT NULL,
@@ -75,6 +76,7 @@ CREATE TABLE `Asset` (
   `active` tinyint(1) NOT NULL DEFAULT 1,
   `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updatedAt` datetime(3) NOT NULL,
+  `deviceType` varchar(191) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `Asset_categoryId_displayOrder_key` (`categoryId`,`displayOrder`),
   KEY `Asset_categoryId_active_idx` (`categoryId`,`active`),
@@ -88,7 +90,7 @@ DROP TABLE IF EXISTS `AssetCategory`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `AssetCategory` (
   `id` varchar(191) NOT NULL,
-  `code` enum('VM','SERVER','NETWORK','BACKUP') NOT NULL,
+  `code` enum('VM','SERVER','NETWORK','STORAGE','BACKUP') NOT NULL,
   `name` varchar(191) NOT NULL,
   `displayOrder` int(11) NOT NULL,
   PRIMARY KEY (`id`),
@@ -101,7 +103,7 @@ DROP TABLE IF EXISTS `AssetOption`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `AssetOption` (
   `id` varchar(191) NOT NULL,
-  `type` enum('DATABASE_TYPE','OS_TYPE','NETWORK_BRAND','BUILDING') NOT NULL,
+  `type` enum('DATABASE_TYPE','OS_TYPE','NETWORK_BRAND','DEVICE_TYPE','STORAGE_DEVICE_TYPE','BUILDING','ASSET_OWNERSHIP_TYPE') NOT NULL,
   `value` varchar(191) NOT NULL,
   `displayOrder` int(11) NOT NULL DEFAULT 0,
   `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
@@ -128,6 +130,101 @@ CREATE TABLE `AuditLog` (
   KEY `AuditLog_action_createdAt_idx` (`action`,`createdAt`),
   KEY `AuditLog_createdAt_idx` (`createdAt`),
   CONSTRAINT `AuditLog_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `BackupInspectionItemResult`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `BackupInspectionItemResult` (
+  `id` varchar(191) NOT NULL,
+  `backupInspectionLogId` varchar(191) NOT NULL,
+  `backupJobId` varchar(191) NOT NULL,
+  `backupJobItemId` varchar(191) DEFAULT NULL,
+  `resultStatus` varchar(191) NOT NULL DEFAULT 'PENDING',
+  `note` text DEFAULT NULL,
+  `recordedById` varchar(191) DEFAULT NULL,
+  `inspectedAt` datetime(3) DEFAULT NULL,
+  `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `updatedAt` datetime(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `BIItemResult_logId_jobId_itemId_uq` (`backupInspectionLogId`,`backupJobId`,`backupJobItemId`),
+  KEY `BackupInspectionItemResult_backupInspectionLogId_idx` (`backupInspectionLogId`),
+  KEY `BackupInspectionItemResult_backupJobId_idx` (`backupJobId`),
+  KEY `BackupInspectionItemResult_backupJobItemId_idx` (`backupJobItemId`),
+  KEY `BackupInspectionItemResult_resultStatus_idx` (`resultStatus`),
+  KEY `BackupInspectionItemResult_inspectedAt_idx` (`inspectedAt`),
+  CONSTRAINT `BackupInspectionItemResult_backupInspectionLogId_fkey` FOREIGN KEY (`backupInspectionLogId`) REFERENCES `BackupInspectionLog` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `BackupInspectionLog`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `BackupInspectionLog` (
+  `id` varchar(191) NOT NULL,
+  `inspectionDate` date NOT NULL,
+  `inspectionShift` varchar(191) NOT NULL DEFAULT 'OFFICE_HOURS',
+  `inspectorName` varchar(191) NOT NULL,
+  `recordedById` varchar(191) DEFAULT NULL,
+  `durationMinutes` int(11) NOT NULL DEFAULT 15,
+  `note` text DEFAULT NULL,
+  `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `updatedAt` datetime(3) NOT NULL,
+  `timeSlot` varchar(191) DEFAULT NULL,
+  `inspectionStartedAt` datetime(3) DEFAULT NULL,
+  `inspectionCompletedAt` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `BackupInspectionLog_inspectionDate_idx` (`inspectionDate`),
+  KEY `BackupInspectionLog_inspectionShift_inspectionDate_idx` (`inspectionShift`,`inspectionDate`),
+  KEY `BackupInspectionLog_recordedById_createdAt_idx` (`recordedById`,`createdAt`),
+  KEY `BackupInspectionLog_timeSlot_inspectionDate_idx` (`timeSlot`,`inspectionDate`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `BackupJob`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `BackupJob` (
+  `id` varchar(191) NOT NULL,
+  `backupName` varchar(191) NOT NULL,
+  `systemName` varchar(191) NOT NULL,
+  `backupType` varchar(191) NOT NULL,
+  `sourceServer` varchar(191) NOT NULL,
+  `destination` varchar(191) NOT NULL,
+  `backupSoftware` varchar(191) NOT NULL,
+  `schedule` varchar(191) NOT NULL,
+  `requiredShift` varchar(191) NOT NULL DEFAULT 'ALL',
+  `priority` varchar(191) NOT NULL DEFAULT 'MEDIUM',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `remark` text DEFAULT NULL,
+  `displayOrder` int(11) NOT NULL DEFAULT 0,
+  `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `updatedAt` datetime(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `BackupJob_active_idx` (`active`),
+  KEY `BackupJob_backupType_idx` (`backupType`),
+  KEY `BackupJob_schedule_idx` (`schedule`),
+  KEY `BackupJob_displayOrder_idx` (`displayOrder`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `BackupJobItem`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `BackupJobItem` (
+  `id` varchar(191) NOT NULL,
+  `backupJobId` varchar(191) NOT NULL,
+  `itemType` varchar(191) NOT NULL,
+  `sourceType` varchar(191) NOT NULL,
+  `sourceId` varchar(191) DEFAULT NULL,
+  `displayName` varchar(191) NOT NULL,
+  `remark` text DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `displayOrder` int(11) NOT NULL DEFAULT 0,
+  `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `updatedAt` datetime(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `BackupJobItem_backupJobId_idx` (`backupJobId`),
+  KEY `BackupJobItem_sourceType_sourceId_idx` (`sourceType`,`sourceId`),
+  KEY `BackupJobItem_active_idx` (`active`),
+  CONSTRAINT `BackupJobItem_backupJobId_fkey` FOREIGN KEY (`backupJobId`) REFERENCES `BackupJob` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `ChecklistCategory`;
@@ -179,10 +276,19 @@ CREATE TABLE `DailyInspection` (
   `timeSlot` enum('SLOT_0800_0900','SLOT_0900_1000','SLOT_1100_1200','SLOT_1300_1400','SLOT_1400_1500','SLOT_1500_1600','SLOT_1600_1700','SLOT_1700_1800','SLOT_1800_1900','SLOT_1900_2000','SLOT_2000_2100','SLOT_2100_2200','SLOT_2200_2300','SLOT_2300_2400','SLOT_0000_0100','SLOT_0100_0200','SLOT_0200_0300','SLOT_0300_0400','SLOT_0400_0500','SLOT_0500_0600','SLOT_0600_0700','SLOT_0700_0800') NOT NULL DEFAULT 'SLOT_0800_0900',
   `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updatedAt` datetime(3) NOT NULL,
+  `backdateReason` text DEFAULT NULL,
+  `inspectionCompletedAt` datetime(3) DEFAULT NULL,
+  `inspectionStartedAt` datetime(3) DEFAULT NULL,
+  `isBackdated` tinyint(1) NOT NULL DEFAULT 0,
+  `recordedById` varchar(191) DEFAULT NULL,
+  `recordedByName` varchar(191) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `DailyInspection_dataCenterId_inspectionDate_timeSlot_key` (`dataCenterId`,`inspectionDate`,`timeSlot`),
   KEY `DailyInspection_dataCenterId_idx` (`dataCenterId`),
   KEY `DailyInspection_inspectionDate_idx` (`inspectionDate`),
+  KEY `DailyInspection_inspectionShift_inspectionDate_idx` (`inspectionShift`,`inspectionDate`),
+  KEY `DailyInspection_isBackdated_idx` (`isBackdated`),
+  KEY `DailyInspection_recordedById_createdAt_idx` (`recordedById`,`createdAt`),
   CONSTRAINT `DailyInspection_dataCenterId_fkey` FOREIGN KEY (`dataCenterId`) REFERENCES `DataCenter` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -201,6 +307,13 @@ CREATE TABLE `DailyStatusEntry` (
   `updatedById` varchar(191) DEFAULT NULL,
   `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updatedAt` datetime(3) NOT NULL,
+  `backdateReason` text DEFAULT NULL,
+  `inspectedAt` datetime(3) DEFAULT NULL,
+  `inspectionShift` enum('OFFICE_HOURS','MORNING_SHIFT','AFTERNOON_SHIFT','NIGHT_SHIFT') NOT NULL DEFAULT 'OFFICE_HOURS',
+  `isBackdated` tinyint(1) NOT NULL DEFAULT 0,
+  `durationMinutes` int(11) DEFAULT NULL,
+  `inspectionStartedAt` datetime(3) DEFAULT NULL,
+  `inspectionCompletedAt` datetime(3) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `DailyStatusEntry_reportId_assetId_day_key` (`reportId`,`assetId`,`day`),
   KEY `DailyStatusEntry_reportId_day_idx` (`reportId`,`day`),
@@ -209,6 +322,8 @@ CREATE TABLE `DailyStatusEntry` (
   KEY `DailyStatusEntry_reportId_statusCode_idx` (`reportId`,`statusCode`),
   KEY `DailyStatusEntry_updatedById_updatedAt_idx` (`updatedById`,`updatedAt`),
   KEY `DailyStatusEntry_recordedById_fkey` (`recordedById`),
+  KEY `DailyStatusEntry_inspectionShift_idx` (`inspectionShift`),
+  KEY `DailyStatusEntry_isBackdated_idx` (`isBackdated`),
   CONSTRAINT `DailyStatusEntry_assetId_fkey` FOREIGN KEY (`assetId`) REFERENCES `Asset` (`id`) ON UPDATE CASCADE,
   CONSTRAINT `DailyStatusEntry_recordedById_fkey` FOREIGN KEY (`recordedById`) REFERENCES `User` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `DailyStatusEntry_reportId_fkey` FOREIGN KEY (`reportId`) REFERENCES `MonthlyReport` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -250,6 +365,26 @@ CREATE TABLE `IncidentLog` (
   KEY `IncidentLog_fiscalYear_idx` (`fiscalYear`),
   KEY `IncidentLog_happenedAt_idx` (`happenedAt`),
   CONSTRAINT `IncidentLog_reportId_fkey` FOREIGN KEY (`reportId`) REFERENCES `MonthlyReport` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `InspectionPolicy`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `InspectionPolicy` (
+  `id` varchar(191) NOT NULL,
+  `categoryKey` varchar(191) NOT NULL,
+  `categoryLabel` varchar(191) NOT NULL,
+  `minRoundsPerDay` int(11) NOT NULL DEFAULT 1,
+  `requiredShifts` varchar(191) NOT NULL DEFAULT 'ALL',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `note` text DEFAULT NULL,
+  `displayOrder` int(11) NOT NULL DEFAULT 0,
+  `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `updatedAt` datetime(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `InspectionPolicy_categoryKey_key` (`categoryKey`),
+  KEY `InspectionPolicy_active_idx` (`active`),
+  KEY `InspectionPolicy_displayOrder_idx` (`displayOrder`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `InspectionResult`;
@@ -405,10 +540,26 @@ CREATE TABLE `User` (
   `twoFactorSecret` varchar(191) DEFAULT NULL,
   `createdAt` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updatedAt` datetime(3) NOT NULL,
+  `mustChangePassword` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `User_username_key` (`username`),
   KEY `User_active_idx` (`active`),
   KEY `User_role_active_idx` (`role`,`active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `_prisma_migrations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `_prisma_migrations` (
+  `id` varchar(36) NOT NULL,
+  `checksum` varchar(64) NOT NULL,
+  `finished_at` datetime(3) DEFAULT NULL,
+  `migration_name` varchar(255) NOT NULL,
+  `logs` text DEFAULT NULL,
+  `rolled_back_at` datetime(3) DEFAULT NULL,
+  `started_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `applied_steps_count` int(10) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -420,4 +571,3 @@ CREATE TABLE `User` (
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
-

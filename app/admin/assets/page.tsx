@@ -3,6 +3,7 @@ import { addAssetAction, toggleAssetAction, updateAssetAction } from "@/app/acti
 import { assetAccountLabels } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { isGeneratedBackupJobAssetCode } from "@/lib/assets";
 
 export default async function AssetsAdminPage() {
   await requireUser(["ADMIN"]);
@@ -10,11 +11,17 @@ export default async function AssetsAdminPage() {
     orderBy: { displayOrder: "asc" },
     include: { assets: { orderBy: { displayOrder: "asc" } } }
   });
+  const visibleCategories = categories.map((category) => ({
+    ...category,
+    assets: category.code === "BACKUP"
+      ? category.assets.filter((asset) => !isGeneratedBackupJobAssetCode(asset.code))
+      : category.assets,
+  }));
 
   return (
     <AppShell title="จัดการบัญชีทรัพย์สิน" subtitle="เพิ่ม ปิดใช้งาน และจัดการรายการ VM / Host / Network / Backup">
       <div className="grid">
-        {categories.map((category) => (
+        {visibleCategories.map((category) => (
           <section className="card" key={category.id}>
             <div className="toolbar">
               <div>

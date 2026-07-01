@@ -1,8 +1,11 @@
 services:
   db:
-    image: ${MARIADB_IMAGE:-mariadb:11.4}
+    image: ${MARIADB_IMAGE:-wutthisak/app-data-center-db:latest}
     container_name: app-data-center-db
     restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     environment:
       MARIADB_DATABASE: ${MARIADB_DATABASE:-app_data_center}
       MARIADB_USER: ${MARIADB_USER:-app_user}
@@ -12,8 +15,7 @@ services:
     ports:
       - "${DB_PORT:-3306}:3306"
     volumes:
-      - db_data:/var/lib/mysql
-      - ./docker/mariadb/init:/docker-entrypoint-initdb.d:ro
+      - ${DB_DATA_PATH:-./data/mariadb}:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -28,7 +30,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      DATABASE_URL: ${DATABASE_URL:-mysql://${MARIADB_USER:-app_user}:${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env}@db:3306/${MARIADB_DATABASE:-app_data_center}}
       APP_URL: ${APP_URL:-http://localhost:3000}
       SERVER_ACTION_ALLOWED_ORIGINS: ${SERVER_ACTION_ALLOWED_ORIGINS:-localhost:3000,127.0.0.1:3000}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
@@ -36,7 +38,13 @@ services:
       TZ: ${TZ:-Asia/Bangkok}
     ports:
       - "${APP_PORT:-3000}:3000"
-    command: npm run start
+    command: >
+      sh -c 'for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        npx prisma migrate deploy && exec npm run start;
+        echo "Waiting for database schema sync...";
+        sleep 3;
+      done;
+      exit 1'
 
 volumes:
   db_data:

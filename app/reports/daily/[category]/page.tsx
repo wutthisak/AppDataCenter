@@ -3,12 +3,9 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ensureReportAction } from "@/app/actions";
 import { canEditRole, requireUser } from "@/lib/auth";
-import { allowedStatusCodes, categoryLabels, statusLabels } from "@/lib/constants";
-import { assetCategoryRoutes } from "@/lib/assets";
+import { allowedStatusCodes, categoryLabels } from "@/lib/constants";
+import { assetCategoryRoutes, generatedBackupJobAssetExclusion, isGeneratedBackupJobAssetCode } from "@/lib/assets";
 import { currentBuddhistYear, daysInThaiMonth, thaiMonthLabel } from "@/lib/date";
-import RefreshButton from "@/components/RefreshButton";
-import { SaveAllStatusesModal } from "@/components/SaveAllStatusesModal";
-import { ResetModal } from "@/components/ResetModal";
 import { MonthlyReportView } from "@/components/MonthlyReportView";
 import { DailyRecordingView } from "@/components/DailyRecordingView";
 import { prisma } from "@/lib/prisma";
@@ -68,7 +65,6 @@ export default async function DailyCategoryReportPage(
       where: { code },
       include: {
         assets: {
-          where: { active: true },
           orderBy: { displayOrder: "asc" }
         }
       }
@@ -77,24 +73,24 @@ export default async function DailyCategoryReportPage(
 
   if (!category) notFound();
 
-  const assets = report
-    ? await prisma.asset.findMany({
-        where: {
-          categoryId: category.id,
-          OR: [
-            { active: true },
-            { entries: { some: { reportId: report.id } } }
-          ]
-        },
-        orderBy: { displayOrder: "asc" }
-      })
-    : category.assets;
+  const assets = await prisma.asset.findMany({
+    where: {
+      categoryId: category.id,
+      ...generatedBackupJobAssetExclusion(code),
+      ...(report
+        ? { OR: [{ active: true }, { entries: { some: { reportId: report.id } } }] }
+        : { active: true }
+      )
+    },
+    orderBy: { displayOrder: "asc" }
+  });
+  const assetIds = assets.map((asset) => asset.id);
 
   const entries = report
     ? await prisma.dailyStatusEntry.findMany({
         where: {
           reportId: report.id,
-          asset: { categoryId: category.id }
+          assetId: { in: assetIds }
         },
         include: {
           recordedBy: { select: { displayName: true } },
@@ -134,9 +130,17 @@ export default async function DailyCategoryReportPage(
   const monthlyHref = `${baseUrl}?month=${month}&buddhistYear=${buddhistYear}&view=monthly&range=${range}&day=${activeDay}`;
   const firstRangeHref = `${baseUrl}?month=${month}&buddhistYear=${buddhistYear}&view=monthly&range=1`;
   const secondRangeHref = `${baseUrl}?month=${month}&buddhistYear=${buddhistYear}&view=monthly&range=2`;
+  const printHref = report
+    ? `/reports/${report.id}/preview?${new URLSearchParams({
+        category: code,
+        month: String(month),
+        buddhistYear: String(buddhistYear),
+        returnTo
+      }).toString()}`
+    : null;
 
   return (
-    <AppShell title={categoryLabels[code]} subtitle={`บันทึกสถานะรายวัน ${period}`} variant="daily-report">
+    <AppShell title={categoryLabels[code]} subtitle={`บันทึกสถานะรายวัน ${period}`} variant="daily-report" hideTopbar>
       <section className="daily-report-hero">
         <div className="daily-report-hero-main">
           <div className="daily-report-title-group">
@@ -180,20 +184,28 @@ export default async function DailyCategoryReportPage(
 
         <div className="daily-report-toolbar">
           <form className="daily-report-period-form" action={ensureReportAction}>
-              <input type="hidden" name="returnTo" value={returnTo} />
-              <CalendarDays size={18} />
-              <select name="month" defaultValue={month}>
-                {Array.from({ length: 12 }, (_, index) => (
-                  <option key={index + 1} value={index + 1}>{index + 1}</option>
-                ))}
-              </select>
-              <span>/</span>
-              <input name="buddhistYear" type="number" defaultValue={buddhistYear} />
-              <button className="daily-report-primary-button" type="submit">เปิดรอบ</button>
-            </form>
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <CalendarDays size={18} />
+            <select name="month" defaultValue={month}>
+              {Array.from({ length: 12 }, (_, index) => (
+                <option key={index + 1} value={index + 1}>{index + 1}</option>
+              ))}
+            </select>
+            <span>/</span>
+            <input name="buddhistYear" type="number" defaultValue={buddhistYear} />
+            <button className="daily-report-primary-button" type="submit">เปิดรอบ</button>
+          </form>
+          <div className="daily-report-view-tabs">
+            <Link href={dailyHref} className={`daily-report-view-tab${activeView === "daily" ? " is-active" : ""}`}>
+              Daily View
+            </Link>
+            <Link href={monthlyHref} className={`daily-report-view-tab${activeView === "monthly" ? " is-active" : ""}`}>
+              Monthly View
+            </Link>
+          </div>
           <div className="daily-report-actions">
-            {report && (
-              <Link className="daily-report-print-button" href={`/reports/${report.id}/preview`} target="_blank">
+            {printHref && (
+              <Link className="daily-report-print-button" href={printHref} target="_blank">
                 <Printer size={16} />
                 พิมพ์รายงาน
               </Link>
@@ -205,39 +217,30 @@ export default async function DailyCategoryReportPage(
           </div>
         </div>
 
-        <div className="daily-report-view-tabs">
-            <Link
-              href={dailyHref}
-              className={`daily-report-view-tab${activeView === "daily" ? " is-active" : ""}`}
-            >
-              Daily View
-            </Link>
-            <Link
-              href={monthlyHref}
-              className={`daily-report-view-tab${activeView === "monthly" ? " is-active" : ""}`}
-            >
-              Monthly View
-            </Link>
-        </div>
       </section>
-      {!report ? (
-        <section className="card">
-          <div className="empty-state">ยังไม่มีรายงานเดือน {period} กรุณาสร้างรายงานก่อนบันทึกสถานะ</div>
+      {!report && (
+        <section className="card" style={{ padding: "14px 20px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, margin: "0 0 8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#92400e", fontWeight: 700, fontSize: 13 }}>
+            <span>⚠</span>
+            <span>ยังไม่มีรายงานเดือน {period} — กรุณากดปุ่ม &ldquo;เปิดรอบ&rdquo; ด้านบนก่อนบันทึกสถานะ</span>
+          </div>
         </section>
-      ) : activeView === "daily" ? (
+      )}
+      {activeView === "daily" ? (
         /* ===== DAILY VIEW ===== */
-        (<section className="card daily-entry-card">
-          <div className="daily-entry-heading">
-            <div>
-              <h2>บันทึกประจำวัน — วันที่ {activeDay} {period}</h2>
-              <p>บันทึกสถานะรายวัน (1 รายการ / 1 Asset / 1 วัน)</p>
+        (<section className="card daily-entry-card" style={{ padding: "20px 20px" }}>
+          <div className="daily-entry-heading" style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#2563eb", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "4px 12px" }}>
+                วันที่ {activeDay} {period}
+              </div>
             </div>
             <form className="daily-entry-day-form" method="get">
               <input type="hidden" name="month" value={month} />
               <input type="hidden" name="buddhistYear" value={buddhistYear} />
               <input type="hidden" name="view" value="daily" />
               <input type="hidden" name="range" value={range} />
-              <label htmlFor="daily-report-day">วันที่บันทึก</label>
+              <label htmlFor="daily-report-day">วันที่</label>
               <input
                 id="daily-report-day"
                 type="date"
@@ -250,72 +253,38 @@ export default async function DailyCategoryReportPage(
             </form>
           </div>
           <DailyRecordingView
-            reportId={report.id}
+            reportId={report?.id ?? ""}
             categoryCode={code}
             assets={assets}
             day={activeDay}
+            month={month}
+            buddhistYear={buddhistYear}
             entries={selectedDayEntries}
             options={options}
             returnTo={returnTo}
-            editable={editable}
+            editable={Boolean(report) && editable}
             userId={user.id}
             userRole={user.role}
           />
         </section>)
       ) : (
         /* ===== MONTHLY VIEW ===== */
-        (<section className="card">
-          <div className="section-heading asset-list-heading">
-            <div>
-              <h2>ภาพรวมสถานะรายเดือน</h2>
-            </div>
-            <div className="report-controls">
-              <div className="range-tabs">
-                <Link className={`button secondary ${range === 1 ? "active" : ""}`} href={firstRangeHref}>วันที่ 1-15</Link>
-                <Link className={`button secondary ${range === 2 ? "active" : ""}`} href={secondRangeHref}>วันที่ 16-{maxDay}</Link>
-              </div>
-              <div className="action-buttons">
-                <RefreshButton className="button secondary" href={returnTo}>รีเฟรช</RefreshButton>
-                {editable && (
-                  <>
-                    <SaveAllStatusesModal
-                      reportId={report.id}
-                      categoryCode={code}
-                      options={options}
-                      maxDay={maxDay}
-                      returnTo={returnTo}
-                    />
-                    <ResetModal
-                      reportId={report.id}
-                      categoryCode={code}
-                      maxDay={maxDay}
-                      returnTo={returnTo}
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="status-legend">
-            <h3>รหัสสถานะ:</h3>
-            <div className="legend-items">
-              {options.map((status) => (
-                <div key={status} className={`legend-item status-${status}`}>
-                  <span className="status-code">{status}</span>
-                  <span className="status-label">{statusLabels[status]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        (<section className="card monthly-ops-card">
           <MonthlyReportView
-            reportId={report.id}
+            reportId={report?.id ?? ""}
             categoryCode={code}
             assets={assets}
+            month={month}
+            buddhistYear={buddhistYear}
+            range={range}
+            maxDay={maxDay}
+            firstRangeHref={firstRangeHref}
+            secondRangeHref={secondRangeHref}
             visibleDays={visibleDays}
             entryMap={entryMap}
             options={options}
             returnTo={returnTo}
-            editable={editable}
+            editable={Boolean(report) && editable}
             userId={user.id}
             userRole={user.role}
           />

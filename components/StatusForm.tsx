@@ -9,6 +9,9 @@ export function StatusForm({
   assetId,
   day,
   timeSlot,
+  inspectionShift,
+  durationMinutes,
+  inspectedAt,
   value,
   options,
   returnTo
@@ -17,6 +20,9 @@ export function StatusForm({
   assetId: string;
   day: number;
   timeSlot?: string;
+  inspectionShift?: string;
+  durationMinutes?: number;
+  inspectedAt?: string;
   value?: AssetStatusCode;
   options: AssetStatusCode[];
   returnTo?: string;
@@ -33,6 +39,9 @@ export function StatusForm({
       <input type="hidden" name="assetId" value={assetId} />
       <input type="hidden" name="day" value={day} />
       {timeSlot ? <input type="hidden" name="timeSlot" value={timeSlot} /> : null}
+      {inspectionShift ? <input type="hidden" name="inspectionShift" value={inspectionShift} /> : null}
+      {durationMinutes ? <input type="hidden" name="durationMinutes" value={durationMinutes} /> : null}
+      {inspectedAt ? <input type="hidden" name="inspectedAt" value={inspectedAt} /> : null}
       {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
       <select
         className="status-select"

@@ -3,10 +3,12 @@ import type { Asset } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { DeleteAssetButton } from "@/components/DeleteAssetButton";
 import { addAssetAction, toggleAssetAction, updateAssetAction } from "@/app/actions";
+import { SaveWithToast } from "@/components/EditAssetForm";
 import { assetAccountLabels } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { assetCategoryRoutes, displayValue, equipmentAge, fieldsByCategory, fieldValue, parseAssetQuantity, type AssetField } from "@/lib/assets";
+import { assetCategoryRoutes, displayValue, equipmentAge, equipmentAgeRisk, fieldsByCategory, fieldValue, isGeneratedBackupJobAssetCode, parseAssetQuantity, type AssetField } from "@/lib/assets";
+import { AddAssetModal } from "@/components/AddAssetModal";
 
 const pageSizeOptions = [10, 20, 30, 40, 50] as const;
 type PageSize = typeof pageSizeOptions[number] | "all";
@@ -56,7 +58,6 @@ function renderAssetField(field: AssetField, asset?: Asset, fieldOptions: string
           step="0.01"
           defaultValue={amount}
           placeholder={field.placeholder}
-          required={field.required}
           aria-label={field.label}
         />
         <select name={`${field.name}Unit`} defaultValue={unit || field.unitOptions[0].value} aria-label={`${field.label} หน่วย`}>
@@ -74,8 +75,8 @@ function renderAssetField(field: AssetField, asset?: Asset, fieldOptions: string
     const defaultValue = asset ? fieldValue(asset, field) : "";
     const options = field.options?.length ? field.options : fieldOptions;
     return (
-      <select name={field.name} defaultValue={defaultValue} aria-label={field.label} required={field.required}>
-        <option value="" disabled>{field.placeholder}</option>
+      <select name={field.name} defaultValue={defaultValue} aria-label={field.label}>
+        <option value="">{field.placeholder}</option>
         {options.map((option) => (
           <option key={option} value={option}>{option}</option>
         ))}
@@ -83,13 +84,25 @@ function renderAssetField(field: AssetField, asset?: Asset, fieldOptions: string
     );
   }
 
+  if (field.type === "date") {
+    return (
+      <input
+        name={field.name}
+        type="text"
+        inputMode="numeric"
+        defaultValue={asset ? fieldValue(asset, field) : undefined}
+        placeholder="วว/ดด/ปปปป"
+        aria-label={field.label}
+      />
+    );
+  }
+
   return (
     <input
       name={field.name}
-      type={field.type ?? "text"}
+      type={field.type === "number" ? "number" : "text"}
       defaultValue={asset ? fieldValue(asset, field) : undefined}
       placeholder={field.placeholder}
-      required={field.required}
       aria-label={field.label}
     />
   );
@@ -115,71 +128,48 @@ export default async function AssetCategoryAdminPage(
 
   const fields = fieldsByCategory[category.code];
   const basePath = `/admin/assets/${params.category}`;
-  const [databaseTypeOptions, osTypeOptions, networkBrandOptions, buildingOptions] = await Promise.all([
+  const [databaseTypeOptions, osTypeOptions, networkBrandOptions, deviceTypeOptions, storageDeviceTypeOptions, buildingOptions, ownershipTypeOptions, dataCenterOptions] = await Promise.all([
     prisma.assetOption.findMany({ where: { type: "DATABASE_TYPE" }, orderBy: { displayOrder: "asc" } }),
     prisma.assetOption.findMany({ where: { type: "OS_TYPE" }, orderBy: { displayOrder: "asc" } }),
     prisma.assetOption.findMany({ where: { type: "NETWORK_BRAND" }, orderBy: { displayOrder: "asc" } }),
-    prisma.assetOption.findMany({ where: { type: "BUILDING" }, orderBy: { displayOrder: "asc" } })
+    prisma.assetOption.findMany({ where: { type: "DEVICE_TYPE" }, orderBy: { displayOrder: "asc" } }),
+    prisma.assetOption.findMany({ where: { type: "STORAGE_DEVICE_TYPE" }, orderBy: { displayOrder: "asc" } }),
+    prisma.assetOption.findMany({ where: { type: "BUILDING" }, orderBy: { displayOrder: "asc" } }),
+    prisma.assetOption.findMany({ where: { type: "ASSET_OWNERSHIP_TYPE" }, orderBy: { displayOrder: "asc" } }),
+    prisma.dataCenter.findMany({ where: { active: true }, orderBy: { displayOrder: "asc" } })
   ]);
   const dynamicOptions: Record<string, string[]> = {
     databaseType: databaseTypeOptions.map((item) => item.value),
     os: osTypeOptions.map((item) => item.value),
     networkBrand: networkBrandOptions.map((item) => item.value),
-    building: buildingOptions.map((item) => item.value)
+    deviceType: deviceTypeOptions.map((item) => item.value),
+    storageDeviceType: storageDeviceTypeOptions.map((item) => item.value),
+    building: buildingOptions.map((item) => item.value),
+    ownershipType: ownershipTypeOptions.map((item) => item.value),
+    dataCenter: dataCenterOptions.map((item) => item.name)
   };
   const pageTone = category.code === "VM" ? "tone-vm" : category.code === "SERVER" ? "tone-host" : "tone-network";
   const query = String(searchParams.q ?? "").trim();
   const pageSize = parsePageSize(searchParams.pageSize);
-  const visibleAssets = category.assets.filter((asset) => matchesSearch(asset, fields, query));
+  const categoryAssets = category.code === "BACKUP"
+    ? category.assets.filter((asset) => !isGeneratedBackupJobAssetCode(asset.code))
+    : category.assets;
+  const visibleAssets = categoryAssets.filter((asset) => matchesSearch(asset, fields, query));
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(visibleAssets.length / pageSize));
   const currentPage = Math.min(parsePage(searchParams.page), totalPages);
   const pageStart = pageSize === "all" ? 0 : (currentPage - 1) * pageSize;
   const pagedAssets = pageSize === "all" ? visibleAssets : visibleAssets.slice(pageStart, pageStart + pageSize);
   const returnTo = assetPageHref(basePath, query, pageSize, currentPage);
-  const showAge = category.code === "SERVER" || category.code === "NETWORK";
+  const showAge = category.code === "SERVER" || category.code === "NETWORK" || category.code === "STORAGE";
 
   return (
     <AppShell title={assetAccountLabels[category.code]} subtitle="เพิ่ม แก้ไข และดูแลบัญชีทรัพย์สินของศูนย์ข้อมูล">
       <div className={`asset-admin-page ${pageTone}`}>
-        <section className="card asset-entry-card">
-          <div className="section-heading">
-            <div>
-              <h2>เพิ่มรายการใหม่</h2>
-              <p className="muted">กรอกชื่อก่อน แล้วเปิดรายละเอียดเฉพาะที่ต้องใช้</p>
-            </div>
-            <span className="badge">{category.assets.length} รายการ</span>
-          </div>
-          <form className="asset-form" action={addAssetAction}>
-            <input type="hidden" name="categoryId" value={category.id} />
-            <input type="hidden" name="returnTo" value={returnTo} />
-            <label>
-              ชื่อ
-              <input name="name" placeholder="ชื่อรายการ" required />
-            </label>
-            {fields.length > 0 ? (
-              <details className="asset-details-fields">
-                <summary>รายละเอียดเพิ่มเติมของทรัพย์สิน</summary>
-                <div className="asset-detail-grid">
-                  {fields.map((field) => (
-                    <label key={field.name}>
-                      {field.label}
-                      {renderAssetField(field, undefined, dynamicOptions[field.source ?? field.name] ?? [])}
-                    </label>
-                  ))}
-                </div>
-              </details>
-            ) : null}
-            <div className="form-actions">
-              <button className="button" type="submit">เพิ่มรายการ</button>
-            </div>
-          </form>
-        </section>
-
         <section className="card asset-list-card">
           <div className="section-heading asset-list-heading">
             <div>
               <h2>รายการทั้งหมด</h2>
-              <p className="muted">{category.assets.filter((asset) => asset.active).length} active / {category.assets.length} total · แสดง {pagedAssets.length} จาก {visibleAssets.length} รายการ</p>
+              <p className="muted">{categoryAssets.filter((asset) => asset.active).length} active / {categoryAssets.length} total · แสดง {pagedAssets.length} จาก {visibleAssets.length} รายการ</p>
             </div>
             <div className="asset-list-tools">
               <form className="asset-search" action={basePath}>
@@ -199,6 +189,39 @@ export default async function AssetCategoryAdminPage(
                 </label>
                 <button className="button secondary" type="submit">ตกลง</button>
               </form>
+              <AddAssetModal
+                categoryId={category.id}
+                returnTo={returnTo}
+                steps={(() => {
+                  const toModalField = (f: typeof fields[number]) =>
+                    f.unitOptions?.length
+                      ? { kind: "number-unit" as const, name: f.name, label: f.label, placeholder: f.placeholder, required: f.required, units: f.unitOptions }
+                      : f.type === "select"
+                        ? { kind: "select" as const, name: f.name, label: f.label, placeholder: f.placeholder, required: f.required, options: f.options?.length ? f.options : (dynamicOptions[f.source ?? f.name] ?? []) }
+                        : { kind: "text" as const, name: f.name, label: f.label, placeholder: f.placeholder, required: f.required };
+                  if (category.code === "SERVER") {
+                    return [
+                      { label: "Hardware", fields: fields.filter((f) => ["cpu","ram","disk"].includes(f.name)).map(toModalField) },
+                      { label: "ระบบ / ทะเบียน", fields: fields.filter((f) => !["cpu","ram","disk"].includes(f.name)).map(toModalField) },
+                    ];
+                  }
+                  if (category.code === "NETWORK") {
+                    return [
+                      { label: "อุปกรณ์", fields: fields.filter((f) => ["deviceType","ownershipType","model","brand"].includes(f.name)).map(toModalField) },
+                      { label: "ที่ตั้ง / วันที่", fields: fields.filter((f) => ["location","building","floor","installedAt"].includes(f.name)).map(toModalField) },
+                    ];
+                  }
+                  if (category.code === "STORAGE") {
+                    return [
+                      { label: "อุปกรณ์", fields: fields.filter((f) => ["deviceType","ownershipType","brand","model"].includes(f.name)).map(toModalField) },
+                      { label: "ตำแหน่ง / ความจุ", fields: fields.filter((f) => ["location","disk","assetNumber","installedAt"].includes(f.name)).map(toModalField) },
+                    ];
+                  }
+                  const detailFields = fields.filter((f) => f.name !== "ipAddress").map(toModalField);
+                  return detailFields.length > 0 ? [{ label: "รายละเอียด", fields: detailFields }] : [];
+                })()}
+                ipPlaceholder="เช่น 192.168.1.10"
+              />
               <a className="button secondary" href={`/admin/assets/print?category=${category.code}&status=active`} target="_blank">พิมพ์รายงาน</a>
             </div>
           </div>
@@ -213,49 +236,61 @@ export default async function AssetCategoryAdminPage(
                   <div className="asset-summary">
                     <div className="asset-title-row">
                       <h3>{asset.name}</h3>
-                      <span className={`badge ${asset.active ? "" : "locked"}`}>{asset.active ? "ACTIVE" : "INACTIVE"}</span>
+                      <div className="asset-title-badges">
+                        <span className="asset-type-badge">{assetAccountLabels[category.code]}</span>
+                        <span className={`badge asset-status-badge ${asset.active ? "" : "locked"}`}>{asset.active ? "ACTIVE" : "INACTIVE"}</span>
+                      </div>
                     </div>
                     <div className="asset-chip-list">
+                      {asset.ipAddress ? <span className="asset-chip asset-chip--ip"><b>IP</b>{asset.ipAddress}</span> : null}
                       {fields.map((field) => (
                         <span className="asset-chip" key={field.name}><b>{field.label}</b>{displayValue(asset, field)}</span>
                       ))}
-                      {showAge ? <span className="asset-chip age-chip"><b>อายุอุปกรณ์</b>{equipmentAge(asset.installedAt)}</span> : null}
+                      {showAge ? <span className={`asset-chip age-chip age-chip--${equipmentAgeRisk(asset.installedAt)}`}><b>อายุอุปกรณ์</b>{equipmentAge(asset.installedAt)}</span> : null}
                     </div>
                   </div>
                 </div>
 
-                <div className="asset-edit-panel">
-                  <form className="asset-edit-form" action={updateAssetAction}>
-                    <input type="hidden" name="assetId" value={asset.id} />
-                    <input type="hidden" name="returnTo" value={returnTo} />
-                    <input name="name" defaultValue={asset.name} aria-label="ชื่อ" required />
-                    {fields.length > 0 ? (
-                      <details className="asset-edit-details">
-                        <summary>แก้ไขรายละเอียด</summary>
-                        <div className="asset-detail-grid">
-                          {fields.map((field) => (
-                            <label key={field.name}>
+                <details className="asset-edit-panel">
+                  <summary className="asset-edit-summary">แก้ไขรายละเอียด</summary>
+                  <div className="asset-edit-panel-body">
+                    <form className="asset-edit-form" id={`asset-update-${asset.id}`}>
+                      <input type="hidden" name="assetId" value={asset.id} />
+                      <input type="hidden" name="returnTo" value={returnTo} />
+                      <div className="asset-detail-grid">
+                        <label>
+                          ชื่อรายการ
+                          <input name="name" defaultValue={asset.name} required placeholder="ชื่อรายการ" />
+                        </label>
+                        <label>
+                          IP Address
+                          <input name="ipAddress" defaultValue={asset.ipAddress ?? ""} placeholder="เช่น 192.168.1.10" />
+                        </label>
+                        {fields.filter((field) => field.name !== "ipAddress").map((field) => {
+                          const fullWidth = ["deviceType", "databaseType"].includes(field.name) || (field.name === "os" && category.code !== "VM" && category.code !== "SERVER");
+                          return (
+                            <label key={field.name} className={fullWidth ? "asset-detail-grid__full" : ""}>
                               {field.label}
                               {renderAssetField(field, asset, dynamicOptions[field.source ?? field.name] ?? [])}
                             </label>
-                          ))}
-                        </div>
-                      </details>
-                    ) : null}
-                    <button className="button secondary" type="submit">บันทึก</button>
-                  </form>
-                  <div className="asset-row-actions">
-                    <form action={toggleAssetAction}>
-                      <input type="hidden" name="assetId" value={asset.id} />
-                      <input type="hidden" name="returnTo" value={returnTo} />
-                      <input type="hidden" name="active" value={asset.active ? "false" : "true"} />
-                      <button className={`button ${asset.active ? "danger" : "secondary"}`} type="submit">
-                        {asset.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
-                      </button>
+                          );
+                        })}
+                      </div>
                     </form>
-                    <DeleteAssetButton assetId={asset.id} assetName={asset.name} returnTo={returnTo} />
+                    <div className="asset-row-actions">
+                      <SaveWithToast formId={`asset-update-${asset.id}`} />
+                      <form action={toggleAssetAction}>
+                        <input type="hidden" name="assetId" value={asset.id} />
+                        <input type="hidden" name="returnTo" value={returnTo} />
+                        <input type="hidden" name="active" value={asset.active ? "false" : "true"} />
+                        <button className={`button asset-action-button ${asset.active ? "asset-action-button--warning" : "asset-action-button--restore"}`} type="submit">
+                          {asset.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                        </button>
+                      </form>
+                      <DeleteAssetButton assetId={asset.id} assetName={asset.name} returnTo={returnTo} />
+                    </div>
                   </div>
-                </div>
+                </details>
               </article>
             ))}
           </div>

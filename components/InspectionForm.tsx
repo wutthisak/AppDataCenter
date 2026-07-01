@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Fragment, useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { createDailyInspectionAction, resetDailyInspectionAction } from "@/app/actions";
-import { shiftDefaultSlots } from "@/lib/inspection-shifts";
+import { getDefaultInspectionSelection, shiftDefaultSlots } from "@/lib/inspection-shifts";
+import { ClipboardCheck, RefreshCw, RotateCcw, Save, X, Check, AlertTriangle, Building2, Calendar, Clock, Search, Thermometer, Droplets, FileText } from "lucide-react";
 
 interface DataCenter {
   id: string;
@@ -36,6 +38,7 @@ interface InspectionFormProps {
   initialDataCenters: DataCenter[];
   initialSelectedDataCenterId: string;
   initialSelectedDate: string;
+  initialSelectedTimeSlot?: string;
   initialCategories: ChecklistCategory[];
   initialExistingInspection: any;
   initialExistingResults: Record<string, { status: string; temperature: string; humidity: string; note: string }>;
@@ -43,11 +46,13 @@ interface InspectionFormProps {
 }
 
 const inspectionShiftOptions = [
-  { value: "OFFICE_HOURS", label: "08:00 น. - 16.00 น. ในเวลาราชการ" },
-  { value: "MORNING_SHIFT", label: "08:00 น. - 16.00 น. เวรเช้า" },
-  { value: "AFTERNOON_SHIFT", label: "16.00 น. - 24.00 น. เวรบ่าย" },
-  { value: "NIGHT_SHIFT", label: "24.00 น. - 08.00 น. เวรดึก" }
+  { value: "OFFICE_HOURS",    label: "ในเวลาราชการ 08:00 - 16:00" },
+  { value: "MORNING_SHIFT",   label: "เวรเช้า 08:00 - 16:00" },
+  { value: "AFTERNOON_SHIFT", label: "เวรบ่าย 16:00 - 24:00" },
+  { value: "NIGHT_SHIFT",     label: "เวรดึก 00:00 - 08:00" }
 ] as const;
+
+const durationOptions = [5, 10, 15, 30, 45, 60] as const;
 
 const ALL_TIME_SLOTS = [
   { value: "SLOT_0800_0900", label: "08:00 - 09:00" },
@@ -74,10 +79,56 @@ const ALL_TIME_SLOTS = [
   { value: "SLOT_0700_0800", label: "07:00 - 08:00" }
 ] as const;
 
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateTimeInput(value: unknown) {
+  if (!value) return "";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+function parseSlotStart(slot: string) {
+  const matched = ALL_TIME_SLOTS.find((it) => it.value === slot);
+  if (!matched) return "08:00";
+  return matched.label.split("-")[0]?.trim() ?? "08:00";
+}
+
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60_000);
+}
+
+function localDateTimeFromDateAndTime(dateText: string, hhmm: string) {
+  const [hour, minute] = hhmm.split(":").map((v) => Number(v));
+  const base = new Date(`${dateText}T00:00:00`);
+  base.setHours(Number.isFinite(hour) ? hour : 0, Number.isFinite(minute) ? minute : 0, 0, 0);
+  return base;
+}
+
+type ToastType = "success" | "error" | "warning" | "info";
+
+interface ToastItem {
+  id: number;
+  type: ToastType;
+  text: string;
+  sub?: string;
+}
+
 export function InspectionForm({
   initialDataCenters,
   initialSelectedDataCenterId,
   initialSelectedDate,
+  initialSelectedTimeSlot,
   initialCategories,
   initialExistingInspection,
   initialExistingResults,
@@ -87,38 +138,90 @@ export function InspectionForm({
   const [selectedDataCenterId, setSelectedDataCenterId] = useState<string>(initialSelectedDataCenterId);
   const [selectedDate, setSelectedDate] = useState<string>(initialSelectedDate);
   const [categories, setCategories] = useState<ChecklistCategory[]>(initialCategories);
-  const [existingInspection, setExistingInspection] = useState<any>(initialExistingInspection);
-  const [existingResults, setExistingResults] = useState<Record<string, { status: string; temperature: string; humidity: string; note: string }>>(initialExistingResults);
   const [formValues, setFormValues] = useState<Record<string, { status: string; temperature: string; humidity: string; note: string }>>(initialExistingResults);
-  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [showRefreshPopup, setShowRefreshPopup] = useState(false);
-  const [showResetPopup, setShowResetPopup] = useState(false);
-  const [showConfirmPopup, setShowConfirmPopup] = useState(false);
+  const [inspectedSlots, setInspectedSlots] = useState<string[]>([]);
+  const [selectedDurationMinutes, setSelectedDurationMinutes] = useState<number>(15);
+  const [confirmAction, setConfirmAction] = useState<"save" | "reset" | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
-  const [inspectionShift, setInspectionShift] = useState<string>(initialExistingInspection?.inspectionShift || "OFFICE_HOURS");
+  const [isMounted, setIsMounted] = useState(false);
+  const initialSelection = getDefaultInspectionSelection(initialExistingInspection?.timeSlot || initialSelectedTimeSlot);
+  const [inspectionShift, setInspectionShift] = useState<string>(initialExistingInspection?.inspectionShift || "MORNING_SHIFT");
   const [selectedSlots, setSelectedSlots] = useState<string[]>(
     initialExistingInspection?.timeSlot
       ? [initialExistingInspection.timeSlot]
-      : []
+      : initialSelectedTimeSlot
+        ? [initialSelectedTimeSlot]
+      : [initialSelection.timeSlot]
   );
+  const activeTimeSlot = selectedSlots[0] ?? "";
+  const allowedSlots = shiftDefaultSlots[inspectionShift as keyof typeof shiftDefaultSlots] ?? [];
+  const totalSlotsInShift = allowedSlots.length;
+  const inspectedSlotsInShift = allowedSlots.filter((slot) => inspectedSlots.includes(slot)).length;
+  const activeSlotLabel = ALL_TIME_SLOTS.find((slot) => slot.value === activeTimeSlot)?.label ?? "-";
+  const isActiveSlotInspected = Boolean(activeTimeSlot && inspectedSlots.includes(activeTimeSlot));
+  const slotStartDate = localDateTimeFromDateAndTime(selectedDate, parseSlotStart(activeTimeSlot));
+  const slotEndDate = addMinutes(slotStartDate, selectedDurationMinutes);
+  const computedStartDateTime = formatDateTimeInput(slotStartDate);
+  const computedEndDateTime = formatDateTimeInput(slotEndDate);
+
+  const pushToast = (type: ToastType, text: string, sub?: string) => {
+    const id = Date.now() + Math.floor(Math.random() * 10_000);
+    setToasts((prev) => [...prev, { id, type, text, sub }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, 3500);
+  };
+
+  const closeToast = (id: number) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  };
+
+  const clearLoadedInspection = () => {
+    setFormValues({});
+  };
+
+  const handleDataCenterChange = (dataCenterId: string) => {
+    const fallback = shiftDefaultSlots.MORNING_SHIFT[0];
+    setSelectedDataCenterId(dataCenterId);
+    setInspectionShift("MORNING_SHIFT");
+    setSelectedSlots(fallback ? [fallback] : []);
+    clearLoadedInspection();
+  };
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    const firstAllowed = shiftDefaultSlots[inspectionShift as keyof typeof shiftDefaultSlots]?.[0];
+    setSelectedSlots(firstAllowed ? [firstAllowed] : []);
+    clearLoadedInspection();
+  };
+
+  const moveInspectionDate = (dayOffset: number) => {
+    if (!selectedDate) return;
+    const nextDate = new Date(`${selectedDate}T12:00:00`);
+    nextDate.setDate(nextDate.getDate() + dayOffset);
+    handleDateChange(formatDateInput(nextDate));
+  };
 
   const handleShiftChange = (shift: string) => {
     setInspectionShift(shift);
-    setSelectedSlots([]);
+    const allowed = shiftDefaultSlots[shift as keyof typeof shiftDefaultSlots] ?? [];
+    const nextSlot = allowed.find((slot) => !inspectedSlots.includes(slot)) ?? allowed[0] ?? "";
+    clearLoadedInspection();
+    setSelectedSlots(nextSlot ? [nextSlot] : []);
 
-    if (shift === "NIGHT_SHIFT") {
-      const nextDay = new Date(selectedDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      setSelectedDate(nextDay.toISOString().split("T")[0]);
-    }
   };
 
   const toggleSlot = (slot: string) => {
-    setSelectedSlots((prev) =>
-      prev.includes(slot) ? prev.filter((s) => s !== slot) : [...prev, slot]
-    );
+    if (inspectedSlots.includes(slot)) {
+      pushToast("warning", "ช่วงเวลานี้มีการบันทึกผลตรวจแล้ว ไม่สามารถบันทึกซ้ำได้", "กรุณาเลือกช่วงเวลาอื่นในเวรเดียวกัน");
+      return;
+    }
+    if (slot === activeTimeSlot) return;
+    clearLoadedInspection();
+    setSelectedSlots([slot]);
   };
 
   const handleInputChange = (itemId: string, field: string, value: string) => {
@@ -131,33 +234,68 @@ export function InspectionForm({
     }));
   };
 
-  const handleSubmit = async (formData: FormData) => {
+  const doSubmit = async () => {
+    if (!formRef.current) return;
     setIsSubmitting(true);
     try {
-      // Log form data for debugging
-      console.log("Form data being submitted:");
-      for (const [key, value] of formData.entries()) {
-        console.log(`${key}: ${value}`);
+      const formData = new FormData(formRef.current);
+      formData.delete("timeSlots");
+      if (activeTimeSlot) {
+        formData.append("timeSlots", activeTimeSlot);
+        formData.set("timeSlot", activeTimeSlot);
+      }
+      formData.set("durationMinutes", String(selectedDurationMinutes));
+      formData.set("inspectionStartedAt", computedStartDateTime);
+      formData.set("inspectionCompletedAt", computedEndDateTime);
+      formData.set("checkDate", selectedDate);
+      formData.set("shift", inspectionShift);
+      formData.set("startTime", parseSlotStart(activeTimeSlot));
+      formData.set("endTime", `${String(slotEndDate.getHours()).padStart(2, "0")}:${String(slotEndDate.getMinutes()).padStart(2, "0")}`);
+
+      const result = await createDailyInspectionAction(formData);
+      if (!result?.ok) {
+        if (result?.code === "DUPLICATE_SLOT") {
+          pushToast("warning", result.message || "ช่วงเวลานี้มีการบันทึกผลตรวจแล้ว ไม่สามารถบันทึกซ้ำได้");
+        } else {
+          pushToast("error", result?.message || "บันทึกผลตรวจไม่สำเร็จ", "กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง");
+        }
+        await fetchCategories();
+        return;
       }
 
-      await createDailyInspectionAction(formData);
-      setShowSuccessPopup(true);
-      setTimeout(() => {
-        setShowSuccessPopup(false);
-      }, 3000);
+      pushToast("success", "บันทึกผลตรวจสำเร็จ", `ช่วง ${activeSlotLabel} ระยะเวลา ${selectedDurationMinutes} นาที`);
       await fetchCategories();
     } catch (error) {
       console.error("Error submitting form:", error);
+      pushToast("error", "บันทึกผลตรวจไม่สำเร็จ", "เกิดข้อผิดพลาดขณะบันทึกข้อมูล");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const requestSaveConfirm = () => {
+    if (isSubmitting) return;
+    if (!selectedDataCenterId || !selectedDate || !inspectionShift || !activeTimeSlot || !selectedDurationMinutes) {
+      pushToast(
+        "warning",
+        "กรุณาเลือกข้อมูลให้ครบ",
+        "กรุณาเลือก Data Center, วันที่, เวร, ช่วงเวลา และระยะเวลาตรวจสอบให้ครบถ้วน"
+      );
+      return;
+    }
+    if (isActiveSlotInspected) {
+      pushToast("warning", "ช่วงเวลานี้มีการบันทึกผลตรวจแล้ว ไม่สามารถบันทึกซ้ำได้");
+      return;
+    }
+    setConfirmAction("save");
+  };
+
   const handleReset = async () => {
     if (!selectedDataCenterId || !selectedDate) return;
-    const confirmed = window.confirm("ต้องการรีเซ็ตข้อมูลการตรวจสอบของวันที่เลือกทั้งหมดใช่หรือไม่? ข้อมูลที่บันทึกไว้จะถูกลบและต้องบันทึกใหม่");
-    if (!confirmed) return;
+    setConfirmAction("reset");
+  };
 
+  const doReset = async () => {
     setIsResetting(true);
     try {
       const formData = new FormData();
@@ -168,16 +306,12 @@ export function InspectionForm({
       const result = await resetDailyInspectionAction(formData);
       if (!result.ok) throw new Error(result.error || "Reset failed");
 
-      setExistingInspection(null);
-      setExistingResults({});
       setFormValues({});
-      setShowResetPopup(true);
-      setTimeout(() => {
-        setShowResetPopup(false);
-      }, 2500);
+      pushToast("info", "รีเซ็ตข้อมูลแล้ว", "กรอกข้อมูลใหม่แล้วกดบันทึกอีกครั้ง");
       await fetchCategories();
     } catch (error) {
       console.error("Error resetting inspection:", error);
+      pushToast("error", "รีเซ็ตไม่สำเร็จ", "เกิดข้อผิดพลาดขณะรีเซ็ตข้อมูล");
     } finally {
       setIsResetting(false);
     }
@@ -190,27 +324,38 @@ export function InspectionForm({
       const data = await response.json();
       setCategories(Array.isArray(data) ? data : []);
 
-      // Fetch existing inspection
-      const inspectionResponse = await fetch(`/api/daily-inspections?dataCenterId=${selectedDataCenterId}&date=${selectedDate}`);
+      const inspectionParams = new URLSearchParams({
+        dataCenterId: selectedDataCenterId,
+        date: selectedDate,
+        inspectionShift
+      });
+      if (activeTimeSlot) {
+        inspectionParams.set("timeSlot", activeTimeSlot);
+      }
+
+      const inspectionResponse = await fetch(`/api/daily-inspections?${inspectionParams.toString()}`);
       if (!inspectionResponse.ok) throw new Error("Failed to fetch daily inspection");
       const inspectionData = await inspectionResponse.json();
+      const fallbackSlot = (shiftDefaultSlots[inspectionShift as keyof typeof shiftDefaultSlots] ?? [])[0] ?? "";
 
-      if (inspectionData) {
-        setExistingInspection(inspectionData.inspection);
-        setExistingResults(inspectionData.results || {});
+      setInspectedSlots(Array.isArray(inspectionData?.inspectedSlots) ? inspectionData.inspectedSlots : []);
+
+      if (inspectionData?.inspection) {
         setFormValues(inspectionData.results || {});
-        setInspectionShift(inspectionData.inspection?.inspectionShift || "OFFICE_HOURS");
-        setSelectedSlots(inspectionData.inspection?.timeSlot ? [inspectionData.inspection.timeSlot] : []);
+        const inspectionSlot = inspectionData.inspection?.timeSlot;
+        if (!activeTimeSlot && inspectionSlot) {
+          setSelectedSlots([inspectionSlot]);
+        }
       } else {
-        setExistingInspection(null);
-        setExistingResults({});
         setFormValues({});
-        setSelectedSlots([]);
+        if (!activeTimeSlot && fallbackSlot) {
+          setSelectedSlots([fallbackSlot]);
+        }
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
     }
-  }, [selectedDataCenterId, selectedDate]);
+  }, [selectedDataCenterId, selectedDate, activeTimeSlot, inspectionShift]);
 
   useEffect(() => {
     if (selectedDataCenterId && selectedDate) {
@@ -218,492 +363,362 @@ export function InspectionForm({
     }
   }, [selectedDataCenterId, selectedDate, fetchCategories]);
 
-  const returnTo = `/checklist/inspection?dataCenterId=${encodeURIComponent(selectedDataCenterId)}&date=${encodeURIComponent(selectedDate)}`;
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const returnTo = `/checklist/inspection?dataCenterId=${encodeURIComponent(selectedDataCenterId)}&date=${encodeURIComponent(selectedDate)}${activeTimeSlot ? `&timeSlot=${encodeURIComponent(activeTimeSlot)}` : ""}`;
+  const progressPercent = totalSlotsInShift > 0 ? (inspectedSlotsInShift / totalSlotsInShift) * 100 : 0;
+  const confirmationModal = confirmAction ? (
+    <div className="inspection-modal-overlay" role="dialog" aria-modal="true">
+      <div className="inspection-modal" tabIndex={-1}>
+        <div className="inspection-modal-icon">
+          {confirmAction === "save" ? <Save size={28} /> : <RotateCcw size={28} />}
+        </div>
+        <h3 className="inspection-modal-title">
+          {confirmAction === "save" ? "ยืนยันก่อนบันทึก" : "ยืนยันก่อนรีเซ็ตฟอร์ม"}
+        </h3>
+        <p className="inspection-modal-desc">
+          {confirmAction === "save" ? "ต้องการบันทึกผลการตรวจสอบใช่หรือไม่?" : "ต้องการล้างข้อมูลทั้งหมดใช่หรือไม่?"}
+        </p>
+        <div className="inspection-modal-summary">
+          <div className="inspection-modal-row">
+            <span className="inspection-modal-label">Data Center</span>
+            <span className="inspection-modal-value">{dataCenters.find((dc) => dc.id === selectedDataCenterId)?.name || "-"}</span>
+          </div>
+          <div className="inspection-modal-row">
+            <span className="inspection-modal-label">วันที่ตรวจสอบ</span>
+            <span className="inspection-modal-value">{selectedDate || "-"}</span>
+          </div>
+          <div className="inspection-modal-row">
+            <span className="inspection-modal-label">เวร/ช่วงเวลา</span>
+            <span className="inspection-modal-value">{inspectionShiftOptions.find((item) => item.value === inspectionShift)?.label || "-"} · {activeSlotLabel}</span>
+          </div>
+          <div className="inspection-modal-row">
+            <span className="inspection-modal-label">ระยะเวลา</span>
+            <span className="inspection-modal-value">{selectedDurationMinutes} นาที</span>
+          </div>
+        </div>
+        <div className="inspection-modal-actions">
+          <button
+            type="button"
+            className="inspection-modal-btn inspection-modal-btn--cancel"
+            onClick={() => setConfirmAction(null)}
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            className="inspection-modal-btn inspection-modal-btn--confirm"
+            disabled={isSubmitting || isResetting}
+            onClick={async () => {
+              const action = confirmAction;
+              setConfirmAction(null);
+              if (action === "save") {
+                await doSubmit();
+              } else {
+                await doReset();
+              }
+            }}
+          >
+            {confirmAction === "save" ? "ยืนยันการบันทึก" : "ยืนยันการรีเซ็ต"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <div className="grid">
-      <section className="card">
-        <form ref={formRef} action={handleSubmit} key={`${selectedDataCenterId}-${selectedDate}`}>
-          <input type="hidden" name="returnTo" value={returnTo} />
-          <input type="hidden" name="inspectorName" value={currentUserDisplayName} />
-          <div className="toolbar" style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", padding: "1.5rem", borderRadius: "8px", marginBottom: "2rem" }}>
-            <div className="form-row">
-              <label style={{ color: "#ffffff" }}>
-                Data Center
-                <select 
-                  name="dataCenterId" 
-                  value={selectedDataCenterId}
-                  onChange={(e) => setSelectedDataCenterId(e.target.value)}
-                  required 
-                  style={{ marginTop: "0.5rem" }}
+    <div className="inspection-form-wrap">
+      <form ref={formRef} key={`${selectedDataCenterId}-${selectedDate}`}>
+        <input type="hidden" name="returnTo" value={returnTo} />
+        <input type="hidden" name="inspectorName" value={currentUserDisplayName} />
+        <input type="hidden" name="inspectionStartedAt" value={computedStartDateTime} />
+        <input type="hidden" name="inspectionCompletedAt" value={computedEndDateTime} />
+
+        {/* ── Hero Section ── */}
+        <section className="inspection-hero">
+          <div className="inspection-hero-content">
+            <div className="inspection-hero-header">
+              <div className="inspection-hero-title-group">
+                <div className="inspection-hero-icon">
+                  <ClipboardCheck size={24} />
+                </div>
+                <div>
+                  <h2 className="inspection-hero-title">ตรวจสอบห้อง Data Center</h2>
+                  <p className="inspection-hero-desc">บันทึกผลการตรวจสอบประจำวัน</p>
+                </div>
+              </div>
+              <div className="inspection-hero-actions">
+                <button type="button" className="inspection-hero-btn inspection-hero-btn--refresh" onClick={async () => {
+                  await fetchCategories();
+                  pushToast("info", "รีเฟรชข้อมูลแล้ว!");
+                }}>
+                  <RefreshCw size={14} />
+                  รีเฟรช
+                </button>
+                <button
+                  type="button"
+                  className="inspection-hero-btn inspection-hero-btn--reset"
+                  onClick={handleReset}
+                  disabled={isResetting || isSubmitting}
                 >
+                  <RotateCcw size={14} />
+                  {isResetting ? "กำลังรีเซ็ต..." : "รีเซ็ต"}
+                </button>
+              </div>
+            </div>
+
+            {/* ── Filters ── */}
+            <div className="inspection-filters">
+              <div className="inspection-filter">
+                <label><Building2 size={14} /> Data Center</label>
+                <select name="dataCenterId" value={selectedDataCenterId} onChange={(e) => handleDataCenterChange(e.target.value)} required>
                   {dataCenters.map((dc) => (
-                    <option key={dc.id} value={dc.id}>
-                      {dc.name}
-                    </option>
+                    <option key={dc.id} value={dc.id}>{dc.name}</option>
                   ))}
                 </select>
-              </label>
-              <label style={{ color: "#ffffff" }}>
-                วันที่ตรวจสอบ
-                <input
-                  type="date"
-                  name="inspectionDate"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  required
-                  style={{ marginTop: "0.5rem" }}
-                />
-              </label>
-              <label style={{ color: "#ffffff" }}>
-                ผู้ปฏิบัติงาน
-                <input
-                  value={currentUserDisplayName}
-                  readOnly
-                  style={{ marginTop: "0.5rem" }}
-                />
-              </label>
-              <label style={{ color: "#ffffff" }}>
-                ช่วงเวลา
-                <select
-                  name="inspectionShift"
-                  value={inspectionShift}
-                  onChange={(e) => handleShiftChange(e.target.value)}
-                  required
-                  style={{ marginTop: "0.5rem", minWidth: "220px" }}
-                >
+              </div>
+              <div className="inspection-filter inspection-filter--date">
+                <label><Calendar size={14} /> วันที่ตรวจสอบ</label>
+                <div className="inspection-date-control">
+                  <button type="button" className="inspection-date-nav" onClick={() => moveInspectionDate(-1)} aria-label="Previous day">
+                    ‹
+                  </button>
+                  <input type="date" name="inspectionDate" value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} required />
+                  <button type="button" className="inspection-date-nav" onClick={() => moveInspectionDate(1)} aria-label="Next day">
+                    ›
+                  </button>
+                  <button type="button" className="inspection-date-today" onClick={() => handleDateChange(formatDateInput(new Date()))}>
+                    วันนี้
+                  </button>
+                </div>
+              </div>
+              <div className="inspection-filter">
+                <label><Clock size={14} /> เวรปฏิบัติงาน</label>
+                <select name="inspectionShift" value={inspectionShift} onChange={(e) => handleShiftChange(e.target.value)} required>
                   {inspectionShiftOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
-              </label>
-              <div style={{ color: "#ffffff" }}>
-                <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-                  ช่วงเวลาที่ตรวจสอบ (เลือกได้หลายช่วง)
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                  {ALL_TIME_SLOTS.filter((slot) => {
-                    const allowed = shiftDefaultSlots[inspectionShift as keyof typeof shiftDefaultSlots];
-                    return allowed && allowed.length > 0 ? allowed.includes(slot.value as any) : true;
-                  }).map((slot) => {
-                    const checked = selectedSlots.includes(slot.value);
-                    return (
-                      <label
-                        key={slot.value}
-                        style={{
-                          display: "flex", alignItems: "center", gap: "0.35rem",
-                          background: checked ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.2)",
-                          color: checked ? "#4c1d95" : "#ffffff",
-                          borderRadius: 8, padding: "0.3rem 0.65rem",
-                          cursor: "pointer", fontSize: "0.82rem", fontWeight: checked ? 700 : 400,
-                          border: checked ? "2px solid #fff" : "2px solid transparent",
-                          transition: "all 0.15s"
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          name="timeSlots"
-                          value={slot.value}
-                          checked={checked}
-                          onChange={() => toggleSlot(slot.value)}
-                          style={{ accentColor: "#7c3aed" }}
-                        />
-                        {slot.label}
-                      </label>
-                    );
-                  })}
-                </div>
-                {selectedSlots.length > 0 && (
-                  <div style={{ fontSize: "0.78rem", marginTop: "0.5rem", color: "rgba(255,255,255,0.85)" }}>
-                    เลือก {selectedSlots.length} ช่วง · workload ต่อรายการ ≈ {categories.reduce((s, c) => s + c.items.length, 0) > 0
-                      ? Math.round((60 * selectedSlots.length) / categories.reduce((s, c) => s + c.items.length, 0))
-                      : 0} นาที
-                  </div>
-                )}
-                {selectedSlots.length === 0 && (
-                  <div style={{ fontSize: "0.78rem", marginTop: "0.5rem", color: "rgba(255,255,255,0.9)" }}>
-                    กรุณาเลือกช่วงเวลาอย่างน้อย 1 ช่วงก่อนบันทึก
-                  </div>
-                )}
               </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  await fetchCategories();
-                  setShowRefreshPopup(true);
-                  setTimeout(() => {
-                    setShowRefreshPopup(false);
-                  }, 2000);
-                }}
-                style={{
-                  background: "rgba(255, 255, 255, 0.9)",
-                  color: "#667eea",
-                  border: "none",
-                  padding: "0.5rem 1rem",
-                  borderRadius: "6px",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  marginTop: "1.5rem"
-                }}
-              >
-                รีเฟรชข้อมูล
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                disabled={isResetting || isSubmitting}
-                style={{
-                  background: "rgba(255, 255, 255, 0.9)",
-                  color: "#b91c1c",
-                  border: "1px solid rgba(255, 255, 255, 0.55)",
-                  padding: "0.5rem 1rem",
-                  borderRadius: "6px",
-                  fontWeight: "bold",
-                  cursor: isResetting || isSubmitting ? "not-allowed" : "pointer",
-                  marginTop: "1.5rem",
-                  opacity: isResetting || isSubmitting ? 0.65 : 1
-                }}
-              >
-                {isResetting ? "กำลังรีเซ็ต..." : "รีเซ็ตข้อมูล"}
-              </button>
+              <div className="inspection-filter">
+                <label><Clock size={14} /> ระยะเวลาที่ใช้ตรวจสอบ</label>
+                <select
+                  name="durationMinutes"
+                  value={selectedDurationMinutes}
+                  onChange={(e) => setSelectedDurationMinutes(Number(e.target.value))}
+                  required
+                >
+                  {durationOptions.map((minutes) => (
+                    <option key={minutes} value={minutes}>{minutes} นาที</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* ── Time Slots ── */}
+            <div className="inspection-slots-section">
+              <div className="inspection-slots-label">
+                <Clock size={14} />
+                <span>เลือกช่วงเวลาตรวจสอบ</span>
+              </div>
+              <div className="inspection-slots">
+                {ALL_TIME_SLOTS.filter((slot) => {
+                  return allowedSlots.length > 0 ? allowedSlots.includes(slot.value as any) : true;
+                }).map((slot) => {
+                  const checked = selectedSlots.includes(slot.value);
+                  const disabled = inspectedSlots.includes(slot.value);
+                  return (
+                    <button
+                      key={slot.value}
+                      type="button"
+                      className={`inspection-slot${checked ? " inspection-slot--active" : ""}${disabled ? " inspection-slot--disabled" : ""}`}
+                      onClick={() => toggleSlot(slot.value)}
+                      disabled={disabled}
+                      title={disabled ? "ช่วงเวลานี้มีการบันทึกผลตรวจแล้ว" : slot.label}
+                    >
+                      <input type="checkbox" name="timeSlots" value={slot.value} checked={checked} onChange={() => {}} />
+                      {slot.label}
+                      {disabled ? <span className="inspection-slot-badge">ตรวจแล้ว</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedSlots.length > 0 && !isActiveSlotInspected && (
+                <div className="inspection-slot-info">
+                  <Check size={14} />
+                  เลือกช่วง {activeSlotLabel} · เวลาเริ่มตรวจ {parseSlotStart(activeTimeSlot)} · เวลาสิ้นสุดตรวจ {String(slotEndDate.getHours()).padStart(2, "0")}:{String(slotEndDate.getMinutes()).padStart(2, "0")}
+                </div>
+              )}
+              {isActiveSlotInspected && (
+                <div className="inspection-slot-info inspection-slot-info--warn">
+                  <AlertTriangle size={14} />
+                  ช่วงเวลานี้ตรวจแล้ว ไม่สามารถบันทึกซ้ำได้
+                </div>
+              )}
+              {selectedSlots.length === 0 && (
+                <div className="inspection-slot-info inspection-slot-info--warn">
+                  <AlertTriangle size={14} />
+                  กรุณาเลือกช่วงเวลาอย่างน้อย 1 ช่วงก่อนบันทึก
+                </div>
+              )}
             </div>
           </div>
+        </section>
 
-          {categories.map((category) => {
-            const hasTemperature = category.items.some((item) => item.requiresTemperature);
-            const hasHumidity = category.items.some((item) => item.requiresHumidity);
-            const detailWidth = hasTemperature || hasHumidity ? "35%" : "42%";
-            const statusWidth = hasTemperature || hasHumidity ? "20%" : "24%";
-            const noteWidth = hasTemperature && hasHumidity ? "21%" : hasTemperature || hasHumidity ? "33%" : "34%";
+        {/* ── Progress Bar ── */}
+        <div className="inspection-progress-bar">
+          <div className="inspection-progress-track">
+            <div className="inspection-progress-fill" style={{ width: `${progressPercent}%` }} />
+          </div>
+          <span className="inspection-progress-text">{inspectedSlotsInShift} / {totalSlotsInShift} รายการ</span>
+        </div>
 
-            return (
-              <div key={category.id} style={{ marginTop: "2rem" }}>
-                <h3 style={{ marginBottom: "1rem", color: "#667eea" }}>{category.name}</h3>
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th style={{ width: detailWidth }}>รายละเอียด</th>
-                        <th style={{ width: statusWidth }}>สถานะ</th>
-                        {hasTemperature && <th style={{ width: "12%" }}>อุณหภูมิ (°C)</th>}
-                        {hasHumidity && <th style={{ width: "12%" }}>ความชื้น (%)</th>}
-                        <th style={{ width: noteWidth }}>หมายเหตุ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {category.items.map((item) => {
-                        const existing = formValues[item.id] || { status: "", temperature: "", humidity: "", note: "" };
-                        return (
-                          <tr key={item.id}>
-                            <td>{item.name}</td>
-                            <td>
-                              <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-                                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                  <input
-                                    type="radio"
-                                    name={`status_${item.id}`}
-                                    value="NORMAL"
-                                    checked={existing.status === "NORMAL"}
-                                    onChange={(e) => handleInputChange(item.id, "status", e.target.value)}
-                                    required
-                                  />
-                                  ปกติ
-                                </label>
-                                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                  <input
-                                    type="radio"
-                                    name={`status_${item.id}`}
-                                    value="ABNORMAL"
-                                    checked={existing.status === "ABNORMAL"}
-                                    onChange={(e) => handleInputChange(item.id, "status", e.target.value)}
-                                  />
-                                  ผิดปกติ
-                                </label>
-                              </div>
-                            </td>
-                            {hasTemperature && (
-                              <td>
-                                {item.requiresTemperature ? (
-                                  <input
-                                    type="number"
-                                    step="0.1"
-                                    name={`temperature_${item.id}`}
-                                    value={existing.temperature}
-                                    onChange={(e) => handleInputChange(item.id, "temperature", e.target.value)}
-                                    placeholder="-"
-                                    style={{ width: "100%" }}
-                                  />
-                                ) : (
-                                  "-"
-                                )}
-                              </td>
-                            )}
-                            {hasHumidity && (
-                              <td>
-                                {item.requiresHumidity ? (
-                                  <input
-                                    type="number"
-                                    step="0.1"
-                                    name={`humidity_${item.id}`}
-                                    value={existing.humidity}
-                                    onChange={(e) => handleInputChange(item.id, "humidity", e.target.value)}
-                                    placeholder="-"
-                                    style={{ width: "100%" }}
-                                  />
-                                ) : (
-                                  "-"
-                                )}
-                              </td>
-                            )}
-                            <td>
+        {/* ── Unified Checklist Table ── */}
+        <section className="inspection-checklist-board">
+          <div className="inspection-table-wrap inspection-table-wrap--single">
+            <table className="inspection-table inspection-table--single">
+              <colgroup>
+                <col className="inspection-col-detail" />
+                <col className="inspection-col-status" />
+                <col className="inspection-col-metric" />
+                <col className="inspection-col-metric" />
+                <col className="inspection-col-note" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th><FileText size={13} /> รายละเอียด</th>
+                  <th><Search size={13} /> สถานะ</th>
+                  <th><Thermometer size={13} /> อุณหภูมิ (°C)</th>
+                  <th><Droplets size={13} /> ความชื้น (%)</th>
+                  <th><FileText size={13} /> หมายเหตุ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categories.map((category) => (
+                  <Fragment key={category.id}>
+                    <tr className="inspection-category-row">
+                      <td colSpan={5}>
+                        <div className="inspection-category-inline">
+                          <span className="inspection-category-inline-icon">🔍</span>
+                          <span className="inspection-category-inline-name">{category.name}</span>
+                          <span className="inspection-category-inline-count">{category.items.length} รายการ</span>
+                        </div>
+                      </td>
+                    </tr>
+                    {category.items.map((item) => {
+                      const existing = formValues[item.id] || { status: "", temperature: "", humidity: "", note: "" };
+                      return (
+                        <tr key={item.id}>
+                          <td><span className="inspection-item-name">{item.name}</span></td>
+                          <td className="inspection-status-cell">
+                            <div className="inspection-status-group">
+                              <label className="inspection-radio inspection-radio--normal">
+                                <input
+                                  type="radio"
+                                  name={`status_${item.id}`}
+                                  value="NORMAL"
+                                  checked={existing.status === "NORMAL"}
+                                  onChange={(e) => handleInputChange(item.id, "status", e.target.value)}
+                                  required
+                                />
+                                <span>ปกติ</span>
+                              </label>
+                              <label className="inspection-radio inspection-radio--abnormal">
+                                <input
+                                  type="radio"
+                                  name={`status_${item.id}`}
+                                  value="ABNORMAL"
+                                  checked={existing.status === "ABNORMAL"}
+                                  onChange={(e) => handleInputChange(item.id, "status", e.target.value)}
+                                />
+                                <span>ผิดปกติ</span>
+                              </label>
+                            </div>
+                          </td>
+                          <td>
+                            {item.requiresTemperature ? (
                               <input
-                                type="text"
-                                name={`note_${item.id}`}
-                                value={existing.note}
-                                onChange={(e) => handleInputChange(item.id, "note", e.target.value)}
+                                type="number" step="0.1"
+                                name={`temperature_${item.id}`}
+                                value={existing.temperature}
+                                onChange={(e) => handleInputChange(item.id, "temperature", e.target.value)}
                                 placeholder="-"
-                                style={{ width: "100%" }}
+                                className="inspection-input"
                               />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-
-           <div className="toolbar" style={{ marginTop: "2rem" }}>
-            <button
-              className="button"
-              type="button"
-              disabled={isSubmitting || selectedSlots.length === 0}
-              onClick={() => setShowConfirmPopup(true)}
-              style={{
-                background: isSubmitting || selectedSlots.length === 0 ? "rgba(102, 126, 234, 0.5)" : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                border: "none",
-                color: "#ffffff",
-                padding: "0.75rem 2rem",
-                borderRadius: "8px",
-                fontSize: "1rem",
-                cursor: isSubmitting || selectedSlots.length === 0 ? "not-allowed" : "pointer"
-              }}
-            >
-              {isSubmitting ? "กำลังบันทึก..." : "บันทึกผลการตรวจสอบ"}
-            </button>
+                            ) : (
+                              <span className="inspection-dash">-</span>
+                            )}
+                          </td>
+                          <td>
+                            {item.requiresHumidity ? (
+                              <input
+                                type="number" step="0.1"
+                                name={`humidity_${item.id}`}
+                                value={existing.humidity}
+                                onChange={(e) => handleInputChange(item.id, "humidity", e.target.value)}
+                                placeholder="-"
+                                className="inspection-input"
+                              />
+                            ) : (
+                              <span className="inspection-dash">-</span>
+                            )}
+                          </td>
+                          <td>
+                            <input
+                              type="text" name={`note_${item.id}`}
+                              value={existing.note}
+                              onChange={(e) => handleInputChange(item.id, "note", e.target.value)}
+                              placeholder="-"
+                              className="inspection-input"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
           </div>
-         </form>
+        </section>
 
-        {/* Confirmation Popup */}
-        {showConfirmPopup && (
-          <>
-            <div
-              onClick={() => setShowConfirmPopup(false)}
-              style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0, 0, 0, 0.55)",
-                backdropFilter: "blur(4px)",
-                WebkitBackdropFilter: "blur(4px)",
-                zIndex: 2000,
-                animation: "fadeIn 0.25s ease"
-              }}
-            />
-            <div
-              style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                background: "rgba(255, 255, 255, 0.96)",
-                backdropFilter: "blur(20px)",
-                WebkitBackdropFilter: "blur(20px)",
-                borderRadius: "20px",
-                padding: "2.5rem 2.5rem 2rem",
-                maxWidth: "440px",
-                width: "90%",
-                zIndex: 2001,
-                boxShadow: "0 25px 60px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.5) inset",
-                textAlign: "center",
-                animation: "popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
-              }}
-            >
-              <div
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  margin: "0 auto 1.25rem",
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "1.8rem",
-                  boxShadow: "0 8px 24px rgba(102, 126, 234, 0.4)"
-                }}
-              >
-                💾
-              </div>
-              <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.35rem", fontWeight: 700, color: "#1e293b" }}>
-                ยืนยันการบันทึก
-              </h3>
-              <p style={{ margin: "0 0 1.5rem", fontSize: "0.9rem", color: "#64748b", lineHeight: 1.5 }}>
-                กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนยืนยันการบันทึกผลการตรวจสอบ
-              </p>
+        {/* ── Submit Button ── */}
+        <div className="inspection-submit-wrap">
+          <button
+            type="button"
+            className="inspection-submit"
+            disabled={isSubmitting || isActiveSlotInspected}
+            onClick={requestSaveConfirm}
+          >
+            <Save size={18} />
+            {isActiveSlotInspected ? "ช่วงเวลานี้ตรวจแล้ว" : isSubmitting ? "กำลังบันทึก..." : "บันทึกผลการตรวจสอบ"}
+          </button>
+        </div>
+      </form>
 
-              <div style={{
-                background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-                borderRadius: "12px",
-                padding: "1rem 1.25rem",
-                marginBottom: "1.75rem",
-                textAlign: "left",
-                border: "1px solid rgba(102, 126, 234, 0.15)"
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem", fontSize: "0.85rem" }}>
-                  <span style={{ color: "#64748b" }}>Data Center</span>
-                  <span style={{ color: "#1e293b", fontWeight: 600 }}>
-                    {dataCenters.find(dc => dc.id === selectedDataCenterId)?.name || "—"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem", fontSize: "0.85rem" }}>
-                  <span style={{ color: "#64748b" }}>วันที่</span>
-                  <span style={{ color: "#1e293b", fontWeight: 600 }}>
-                    {new Date(selectedDate).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem", fontSize: "0.85rem" }}>
-                  <span style={{ color: "#64748b" }}>ช่วงเวลา</span>
-                  <span style={{ color: "#1e293b", fontWeight: 600 }}>
-                    {inspectionShiftOptions.find(s => s.value === inspectionShift)?.label || inspectionShift}
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
-                  <span style={{ color: "#64748b" }}>รายการที่ตรวจสอบ</span>
-                  <span style={{ color: "#1e293b", fontWeight: 600 }}>
-                    {Object.values(formValues).filter(r => r.status).length} / {categories.reduce((sum, c) => sum + c.items.length, 0)}
-                  </span>
-                </div>
-              </div>
+      {/* ── Confirmation Modal ── */}
+      {isMounted && confirmationModal ? createPortal(confirmationModal, document.body) : null}
 
-              <div style={{ display: "flex", gap: "0.75rem" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPopup(false)}
-                  disabled={isSubmitting}
-                  style={{
-                    flex: 1,
-                    padding: "0.7rem 1rem",
-                    borderRadius: "10px",
-                    border: "1.5px solid #e2e8f0",
-                    background: "#ffffff",
-                    color: "#64748b",
-                    fontSize: "0.95rem",
-                    fontWeight: 600,
-                    cursor: isSubmitting ? "not-allowed" : "pointer",
-                    transition: "all 0.2s",
-                    opacity: isSubmitting ? 0.5 : 1
-                  }}
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowConfirmPopup(false);
-                    formRef.current?.requestSubmit();
-                  }}
-                  disabled={isSubmitting}
-                  style={{
-                    flex: 1,
-                    padding: "0.7rem 1rem",
-                    borderRadius: "10px",
-                    border: "none",
-                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                    color: "#ffffff",
-                    fontSize: "0.95rem",
-                    fontWeight: 700,
-                    cursor: isSubmitting ? "not-allowed" : "pointer",
-                    boxShadow: "0 4px 14px rgba(102, 126, 234, 0.4)",
-                    transition: "all 0.2s",
-                    opacity: isSubmitting ? 0.5 : 1
-                  }}
-                >
-                  {isSubmitting ? "กำลังบันทึก..." : "ยืนยันบันทึก"}
-                </button>
-              </div>
+      {/* ── Toast Notifications ── */}
+      <div className="inspection-toast-stack" aria-live="polite" aria-atomic="true">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`inspection-notification inspection-notification--${toast.type === "warning" ? "danger" : toast.type}`}
+          >
+            <div className="inspection-notification-icon">
+              {toast.type === "success" ? <Check size={20} /> : toast.type === "info" ? <RefreshCw size={20} /> : toast.type === "warning" ? <AlertTriangle size={20} /> : <X size={20} />}
             </div>
-          </>
-        )}
-
-        {showSuccessPopup && (
-          <div
-            style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: "#ffffff",
-              padding: "2rem 3rem",
-              borderRadius: "12px",
-              boxShadow: "0 10px 40px rgba(0, 0, 0, 0.3)",
-              zIndex: 1000,
-              textAlign: "center",
-              animation: "fadeIn 0.3s ease-in-out"
-            }}
-          >
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✓</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>บันทึกสำเร็จ!</div>
+            <div className="inspection-notification-content">
+              <div className="inspection-notification-text">{toast.text}</div>
+              {toast.sub ? <div className="inspection-notification-sub">{toast.sub}</div> : null}
+            </div>
+            <button className="inspection-notification-close" onClick={() => closeToast(toast.id)}><X size={16} /></button>
           </div>
-        )}
-
-        {showRefreshPopup && (
-          <div
-            style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: "#ffffff",
-              padding: "2rem 3rem",
-              borderRadius: "12px",
-              boxShadow: "0 10px 40px rgba(0, 0, 0, 0.3)",
-              zIndex: 1000,
-              textAlign: "center",
-              animation: "fadeIn 0.3s ease-in-out"
-            }}
-          >
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔄</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>รีเฟรชข้อมูลแล้ว!</div>
-          </div>
-        )}
-
-        {showResetPopup && (
-          <div
-            style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)",
-              color: "#ffffff",
-              padding: "2rem 3rem",
-              borderRadius: "12px",
-              boxShadow: "0 10px 40px rgba(0, 0, 0, 0.3)",
-              zIndex: 1000,
-              textAlign: "center",
-              animation: "fadeIn 0.3s ease-in-out"
-            }}
-          >
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✓</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>รีเซ็ตข้อมูลแล้ว</div>
-            <div style={{ marginTop: "0.5rem" }}>กรอกข้อมูลใหม่แล้วกดบันทึกอีกครั้ง</div>
-          </div>
-        )}
-      </section>
+        ))}
+      </div>
     </div>
   );
 }

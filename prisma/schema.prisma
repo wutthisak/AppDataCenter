@@ -22,6 +22,7 @@ enum AssetCategoryCode {
   VM
   SERVER
   NETWORK
+  STORAGE
   BACKUP
 }
 
@@ -38,7 +39,10 @@ enum AssetOptionType {
   DATABASE_TYPE
   OS_TYPE
   NETWORK_BRAND
+  DEVICE_TYPE
+  STORAGE_DEVICE_TYPE
   BUILDING
+  ASSET_OWNERSHIP_TYPE
 }
 
 model AssetOption {
@@ -54,29 +58,30 @@ model AssetOption {
 }
 
 model User {
-  id                String     @id @default(cuid())
-  username          String     @unique
-  displayName       String
-  passwordHash      String
-  role              Role       @default(OPERATOR)
-  active            Boolean    @default(true)
-  position          String?
-  department        String?
-  email             String?
-  phone             String?
-  defaultShift      String?
-  twoFactorEnabled  Boolean    @default(false)
-  twoFactorSecret   String?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  id                 String   @id @default(cuid())
+  username           String   @unique
+  displayName        String
+  passwordHash       String
+  role               Role     @default(OPERATOR)
+  active             Boolean  @default(true)
+  mustChangePassword Boolean  @default(false)
+  position           String?
+  department         String?
+  email              String?
+  phone              String?
+  defaultShift       String?
+  twoFactorEnabled   Boolean  @default(false)
+  twoFactorSecret    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  entries           DailyStatusEntry[] @relation("EntryUpdatedBy")
-  recordedEntries   DailyStatusEntry[] @relation("EntryRecordedBy")
-  reviewedReports   MonthlyReport[]    @relation("ReportReviewedBy")
-  auditLogs         AuditLog[]
-  serverMetricLogs  ServerMetricLog[]
-  metricRecorded    ServerMetricEntry[] @relation("MetricRecordedBy")
-  metricUpdated     ServerMetricEntry[] @relation("MetricUpdatedBy")
+  entries          DailyStatusEntry[]  @relation("EntryUpdatedBy")
+  recordedEntries  DailyStatusEntry[]  @relation("EntryRecordedBy")
+  reviewedReports  MonthlyReport[]     @relation("ReportReviewedBy")
+  auditLogs        AuditLog[]
+  serverMetricLogs ServerMetricLog[]
+  metricRecorded   ServerMetricEntry[] @relation("MetricRecordedBy")
+  metricUpdated    ServerMetricEntry[] @relation("MetricUpdatedBy")
 
   @@index([active])
   @@index([role, active])
@@ -93,32 +98,34 @@ model AssetCategory {
 }
 
 model Asset {
-  id           String        @id @default(cuid())
-  categoryId   String
-  code         String?
-  name         String
-  model        String?
-  brand        String?
-  os           String?
-  cpu          String?
-  ram          String?
-  disk         String?
-  assetNumber  String?
-  ipAddress    String?
-  location     String?
-  building     String?
-  floor        String?
-  installedAt  DateTime?
-  databaseType String?
+  id             String    @id @default(cuid())
+  categoryId     String
+  code           String?
+  name           String
+  deviceType     String?
+  model          String?
+  brand          String?
+  os             String?
+  cpu            String?
+  ram            String?
+  disk           String?
+  assetNumber    String?
+  ipAddress      String?
+  location       String?
+  ownershipType  String?
+  building       String?
+  floor          String?
+  installedAt    DateTime?
+  databaseType   String?
   databaseServer String?
-  displayOrder Int
-  active       Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  displayOrder   Int
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  category     AssetCategory @relation(fields: [categoryId], references: [id])
-  entries      DailyStatusEntry[]
-  metrics      ServerMetricLog[]
+  category      AssetCategory       @relation(fields: [categoryId], references: [id])
+  entries       DailyStatusEntry[]
+  metrics       ServerMetricLog[]
   metricEntries ServerMetricEntry[] @relation("AssetMetricEntries")
 
   @@unique([categoryId, displayOrder])
@@ -128,21 +135,21 @@ model Asset {
 }
 
 model MonthlyReport {
-  id              String          @id @default(cuid())
-  month           Int
-  buddhistYear    Int
-  status          ReportStatus    @default(DRAFT)
-  reviewerName    String?
-  reviewedById    String?
-  reviewedAt      DateTime?
-  lockedAt        DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id           String       @id @default(cuid())
+  month        Int
+  buddhistYear Int
+  status       ReportStatus @default(DRAFT)
+  reviewerName String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  lockedAt     DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  reviewedBy      User?           @relation("ReportReviewedBy", fields: [reviewedById], references: [id])
-  entries         DailyStatusEntry[]
-  incidents       IncidentLog[]
-  metrics         ServerMetricLog[]
+  reviewedBy User?              @relation("ReportReviewedBy", fields: [reviewedById], references: [id])
+  entries    DailyStatusEntry[]
+  incidents  IncidentLog[]
+  metrics    ServerMetricLog[]
 
   @@unique([month, buddhistYear])
   @@index([buddhistYear, month])
@@ -151,22 +158,29 @@ model MonthlyReport {
 }
 
 model DailyStatusEntry {
-  id           String               @id @default(cuid())
-  reportId     String
-  assetId      String
-  day          Int
-  timeSlot     InspectionTimeSlot   @default(SLOT_0800_0900)
-  statusCode   AssetStatusCode
-  note         String?              @db.Text
-  recordedById String?
-  updatedById  String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id                    String             @id @default(cuid())
+  reportId              String
+  assetId               String
+  day                   Int
+  timeSlot              InspectionTimeSlot @default(SLOT_0800_0900)
+  inspectionShift       InspectionShift    @default(OFFICE_HOURS)
+  inspectedAt           DateTime?
+  durationMinutes       Int?
+  inspectionStartedAt   DateTime?
+  inspectionCompletedAt DateTime?
+  statusCode            AssetStatusCode
+  note                  String?            @db.Text
+  isBackdated           Boolean            @default(false)
+  backdateReason        String?            @db.Text
+  recordedById          String?
+  updatedById           String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
-  report       MonthlyReport        @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  asset        Asset                @relation(fields: [assetId], references: [id])
-  recordedBy   User?                @relation("EntryRecordedBy", fields: [recordedById], references: [id])
-  updatedBy    User?                @relation("EntryUpdatedBy", fields: [updatedById], references: [id])
+  report     MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  asset      Asset         @relation(fields: [assetId], references: [id])
+  recordedBy User?         @relation("EntryRecordedBy", fields: [recordedById], references: [id])
+  updatedBy  User?         @relation("EntryUpdatedBy", fields: [updatedById], references: [id])
 
   @@unique([reportId, assetId, day])
   @@index([reportId, day])
@@ -174,26 +188,28 @@ model DailyStatusEntry {
   @@index([reportId, assetId])
   @@index([reportId, statusCode])
   @@index([updatedById, updatedAt])
+  @@index([inspectionShift])
+  @@index([isBackdated])
 }
 
 model ServerMetricLog {
-  id             String        @id @default(cuid())
-  reportId       String
-  serverAssetId  String
-  measuredAt     DateTime
-  cpuPercent     Decimal       @db.Decimal(5, 2)
-  ramUsedGb      Decimal       @db.Decimal(10, 2)
-  ramTotalGb     Decimal       @db.Decimal(10, 2)
-  diskUsedGb     Decimal       @db.Decimal(12, 2)
-  diskTotalGb    Decimal       @db.Decimal(12, 2)
-  note           String?       @db.Text
-  createdById    String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id            String   @id @default(cuid())
+  reportId      String
+  serverAssetId String
+  measuredAt    DateTime
+  cpuPercent    Decimal  @db.Decimal(5, 2)
+  ramUsedGb     Decimal  @db.Decimal(10, 2)
+  ramTotalGb    Decimal  @db.Decimal(10, 2)
+  diskUsedGb    Decimal  @db.Decimal(12, 2)
+  diskTotalGb   Decimal  @db.Decimal(12, 2)
+  note          String?  @db.Text
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  report         MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  serverAsset    Asset         @relation(fields: [serverAssetId], references: [id])
-  createdBy      User?         @relation(fields: [createdById], references: [id])
+  report      MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  serverAsset Asset         @relation(fields: [serverAssetId], references: [id])
+  createdBy   User?         @relation(fields: [createdById], references: [id])
 
   @@index([serverAssetId, measuredAt])
   @@index([reportId])
@@ -203,17 +219,17 @@ model ServerMetricLog {
 }
 
 model IncidentLog {
-  id              String        @id @default(cuid())
+  id              String   @id @default(cuid())
   reportId        String
   happenedAt      DateTime
   fiscalYear      Int
-  description     String        @db.Text
+  description     String   @db.Text
   recoveryTime    String?
   downtimeMinutes Int?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  report          MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
   @@index([fiscalYear])
@@ -221,15 +237,15 @@ model IncidentLog {
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String?
-  action      String
-  entityType  String
-  entityId    String?
-  detail      Json?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  detail     Json?
+  createdAt  DateTime @default(now())
 
-  user        User?    @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt])
   @@index([entityType, entityId])
@@ -238,14 +254,14 @@ model AuditLog {
 }
 
 model DataCenter {
-  id           String             @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
   location     String?
-  description  String?            @db.Text
-  displayOrder Int                @default(0)
-  active       Boolean            @default(true)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  description  String?  @db.Text
+  displayOrder Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   inspections  DailyInspection[]
   categories   ChecklistCategory[]
@@ -256,15 +272,15 @@ model DataCenter {
 }
 
 model ChecklistCategory {
-  id           String         @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
   dataCenterId String
-  displayOrder Int            @default(0)
-  active       Boolean        @default(true)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  displayOrder Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  dataCenter   DataCenter     @relation(fields: [dataCenterId], references: [id])
+  dataCenter   DataCenter      @relation(fields: [dataCenterId], references: [id])
   items        ChecklistItem[]
   activityLogs ActivityLog[]
 
@@ -273,20 +289,20 @@ model ChecklistCategory {
 }
 
 model ChecklistItem {
-  id                   String           @id @default(cuid())
+  id                   String   @id @default(cuid())
   categoryId           String
   name                 String
-  requiresTemperature  Boolean          @default(false)
-  requiresHumidity     Boolean          @default(false)
-  estimatedDurationMin Int              @default(5)
-  displayOrder         Int              @default(0)
-  active               Boolean          @default(true)
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
+  requiresTemperature  Boolean  @default(false)
+  requiresHumidity     Boolean  @default(false)
+  estimatedDurationMin Int      @default(5)
+  displayOrder         Int      @default(0)
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  category             ChecklistCategory @relation(fields: [categoryId], references: [id])
-  results              InspectionResult[]
-  activityLogs         ActivityLog[]
+  category     ChecklistCategory  @relation(fields: [categoryId], references: [id])
+  results      InspectionResult[]
+  activityLogs ActivityLog[]
 
   @@index([categoryId, active])
   @@index([categoryId, active, displayOrder])
@@ -330,37 +346,46 @@ enum InspectionTimeSlot {
 }
 
 model DailyInspection {
-  id               String                 @id @default(cuid())
-  dataCenterId     String
-  inspectionDate   DateTime               @db.Date
-  inspectorName    String
-  inspectionShift  InspectionShift        @default(OFFICE_HOURS)
-  timeSlot         InspectionTimeSlot     @default(SLOT_0800_0900)
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  id                    String             @id @default(cuid())
+  dataCenterId          String
+  inspectionDate        DateTime           @db.Date
+  inspectorName         String
+  inspectionShift       InspectionShift    @default(OFFICE_HOURS)
+  timeSlot              InspectionTimeSlot @default(SLOT_0800_0900)
+  inspectionStartedAt   DateTime?
+  inspectionCompletedAt DateTime?
+  isBackdated           Boolean            @default(false)
+  backdateReason        String?            @db.Text
+  recordedById          String?
+  recordedByName        String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
-  dataCenter       DataCenter             @relation(fields: [dataCenterId], references: [id])
-  results          InspectionResult[]
-  activityLogs     ActivityLog[]
+  dataCenter   DataCenter         @relation(fields: [dataCenterId], references: [id])
+  results      InspectionResult[]
+  activityLogs ActivityLog[]
 
   @@unique([dataCenterId, inspectionDate, timeSlot])
   @@index([dataCenterId])
   @@index([inspectionDate])
+  @@index([inspectionShift, inspectionDate])
+  @@index([isBackdated])
+  @@index([recordedById, createdAt])
 }
 
 model InspectionResult {
-  id                 String           @id @default(cuid())
-  dailyInspectionId  String
-  checklistItemId    String
-  status             InspectionStatus
-  temperature        Decimal?         @db.Decimal(5, 2)
-  humidity           Decimal?         @db.Decimal(5, 2)
-  note               String?          @db.Text
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                String           @id @default(cuid())
+  dailyInspectionId String
+  checklistItemId   String
+  status            InspectionStatus
+  temperature       Decimal?         @db.Decimal(5, 2)
+  humidity          Decimal?         @db.Decimal(5, 2)
+  note              String?          @db.Text
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
-  dailyInspection    DailyInspection  @relation(fields: [dailyInspectionId], references: [id], onDelete: Cascade)
-  checklistItem      ChecklistItem    @relation(fields: [checklistItemId], references: [id])
+  dailyInspection DailyInspection @relation(fields: [dailyInspectionId], references: [id], onDelete: Cascade)
+  checklistItem   ChecklistItem   @relation(fields: [checklistItemId], references: [id])
 
   @@unique([dailyInspectionId, checklistItemId])
   @@index([dailyInspectionId])
@@ -392,10 +417,10 @@ model ActivityLog {
   inspectorName        String
   createdAt            DateTime     @default(now())
 
-  dataCenter           DataCenter        @relation(fields: [dataCenterId], references: [id])
-  dailyInspection      DailyInspection   @relation(fields: [dailyInspectionId], references: [id], onDelete: Cascade)
-  checklistItem        ChecklistItem     @relation(fields: [checklistItemId], references: [id])
-  category             ChecklistCategory @relation(fields: [categoryId], references: [id])
+  dataCenter      DataCenter        @relation(fields: [dataCenterId], references: [id])
+  dailyInspection DailyInspection   @relation(fields: [dailyInspectionId], references: [id], onDelete: Cascade)
+  checklistItem   ChecklistItem     @relation(fields: [checklistItemId], references: [id])
+  category        ChecklistCategory @relation(fields: [categoryId], references: [id])
 
   @@index([dataCenterId, inspectionDate])
   @@index([dailyInspectionId])
@@ -417,28 +442,28 @@ enum MetricStatus {
 }
 
 model ServerMetricEntry {
-  id              String              @id @default(cuid())
-  assetId         String
-  recordDate      DateTime            @db.Date
-  cpuPercent      Decimal             @db.Decimal(5, 2)
-  ramUsedGb       Decimal             @db.Decimal(10, 2)
-  ramTotalGb      Decimal             @db.Decimal(10, 2)
-  ramPercent      Decimal             @db.Decimal(5, 2)
-  cpuStatus       MetricStatus        @default(NORMAL)
-  ramStatus       MetricStatus        @default(NORMAL)
-  overallStatus   MetricStatus        @default(NORMAL)
-  note            String?             @db.Text
-  recordedShift   InspectionShift?
+  id               String              @id @default(cuid())
+  assetId          String
+  recordDate       DateTime            @db.Date
+  cpuPercent       Decimal             @db.Decimal(5, 2)
+  ramUsedGb        Decimal             @db.Decimal(10, 2)
+  ramTotalGb       Decimal             @db.Decimal(10, 2)
+  ramPercent       Decimal             @db.Decimal(5, 2)
+  cpuStatus        MetricStatus        @default(NORMAL)
+  ramStatus        MetricStatus        @default(NORMAL)
+  overallStatus    MetricStatus        @default(NORMAL)
+  note             String?             @db.Text
+  recordedShift    InspectionShift?
   recordedTimeSlot InspectionTimeSlot?
-  recordedById    String?
-  recordedAt      DateTime            @default(now())
-  updatedById     String?
-  updatedAt       DateTime            @updatedAt
+  recordedById     String?
+  recordedAt       DateTime            @default(now())
+  updatedById      String?
+  updatedAt        DateTime            @updatedAt
 
-  asset           Asset               @relation("AssetMetricEntries", fields: [assetId], references: [id])
-  recordedBy      User?               @relation("MetricRecordedBy", fields: [recordedById], references: [id])
-  updatedBy       User?               @relation("MetricUpdatedBy", fields: [updatedById], references: [id])
-  disks           ServerDiskDetail[]
+  asset      Asset              @relation("AssetMetricEntries", fields: [assetId], references: [id])
+  recordedBy User?              @relation("MetricRecordedBy", fields: [recordedById], references: [id])
+  updatedBy  User?              @relation("MetricUpdatedBy", fields: [updatedById], references: [id])
+  disks      ServerDiskDetail[]
 
   @@unique([assetId, recordDate])
   @@index([recordDate])
@@ -448,17 +473,122 @@ model ServerMetricEntry {
 }
 
 model ServerDiskDetail {
-  id              String              @id @default(cuid())
-  metricEntryId   String
-  diskName        String
-  mountPoint      String?
-  usedGb          Decimal             @db.Decimal(12, 2)
-  totalGb         Decimal             @db.Decimal(12, 2)
-  percent         Decimal             @db.Decimal(5, 2)
-  status          MetricStatus        @default(NORMAL)
+  id            String       @id @default(cuid())
+  metricEntryId String
+  diskName      String
+  mountPoint    String?
+  usedGb        Decimal      @db.Decimal(12, 2)
+  totalGb       Decimal      @db.Decimal(12, 2)
+  percent       Decimal      @db.Decimal(5, 2)
+  status        MetricStatus @default(NORMAL)
 
-  metricEntry     ServerMetricEntry   @relation(fields: [metricEntryId], references: [id], onDelete: Cascade)
+  metricEntry ServerMetricEntry @relation(fields: [metricEntryId], references: [id], onDelete: Cascade)
 
   @@unique([metricEntryId, diskName])
   @@index([metricEntryId])
+}
+
+model InspectionPolicy {
+  id              String   @id @default(cuid())
+  categoryKey     String   @unique
+  categoryLabel   String
+  minRoundsPerDay Int      @default(1)
+  requiredShifts  String   @default("ALL")
+  active          Boolean  @default(true)
+  note            String?  @db.Text
+  displayOrder    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([active])
+  @@index([displayOrder])
+}
+
+model BackupInspectionLog {
+  id              String   @id @default(cuid())
+  inspectionDate  DateTime @db.Date
+  inspectionShift String   @default("OFFICE_HOURS")
+  timeSlot        String?
+  inspectorName   String
+  recordedById    String?
+  durationMinutes Int      @default(15)
+  inspectionStartedAt   DateTime?
+  inspectionCompletedAt DateTime?
+  note            String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  itemResults BackupInspectionItemResult[]
+
+  @@index([inspectionDate])
+  @@index([inspectionShift, inspectionDate])
+  @@index([timeSlot, inspectionDate])
+  @@index([recordedById, createdAt])
+}
+
+model BackupInspectionItemResult {
+  id                    String    @id @default(cuid())
+  backupInspectionLogId String
+  backupJobId           String
+  backupJobItemId       String?
+  resultStatus          String    @default("PENDING")
+  note                  String?   @db.Text
+  recordedById          String?
+  inspectedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  inspectionLog BackupInspectionLog @relation(fields: [backupInspectionLogId], references: [id], onDelete: Cascade)
+
+  @@unique([backupInspectionLogId, backupJobId, backupJobItemId], name: "BIItemResult_logId_jobId_itemId_uq")
+  @@index([backupInspectionLogId])
+  @@index([backupJobId])
+  @@index([backupJobItemId])
+  @@index([resultStatus])
+  @@index([inspectedAt])
+}
+
+model BackupJob {
+  id             String   @id @default(cuid())
+  backupName     String
+  systemName     String
+  backupType     String
+  sourceServer   String
+  destination    String
+  backupSoftware String
+  schedule       String
+  requiredShift  String   @default("ALL")
+  priority       String   @default("MEDIUM")
+  active         Boolean  @default(true)
+  remark         String?  @db.Text
+  displayOrder   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  items BackupJobItem[]
+
+  @@index([active])
+  @@index([backupType])
+  @@index([schedule])
+  @@index([displayOrder])
+}
+
+model BackupJobItem {
+  id           String   @id @default(cuid())
+  backupJobId  String
+  itemType     String
+  sourceType   String
+  sourceId     String?
+  displayName  String
+  remark       String?  @db.Text
+  active       Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  backupJob BackupJob @relation(fields: [backupJobId], references: [id], onDelete: Cascade)
+
+  @@index([backupJobId])
+  @@index([sourceType, sourceId])
+  @@index([active])
 }

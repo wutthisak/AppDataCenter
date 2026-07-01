@@ -2,8 +2,12 @@ node_modules
 .next
 .env
 dist
+data/
+backups/
 coverage
 playwright-report
 test-results
 *.log
 *.tsbuildinfo
+.serena/
+tree.txt

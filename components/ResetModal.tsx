@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AssetCategoryCode } from "@prisma/client";
-import { resetDayEntriesAction } from "@/app/actions";
+import { resetDayEntriesRangeAction } from "@/app/actions";
+import { Toast } from "@/components/Toast";
 
 export function ResetModal({
   reportId,
@@ -20,30 +21,36 @@ export function ResetModal({
   const [startDay, setStartDay] = useState<number | "">("");
   const [endDay, setEndDay] = useState<number | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
   const router = useRouter();
+  const canSubmit = !!startDay && !!endDay && Number(startDay) <= Number(endDay);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startDay || !endDay) return;
+    if (!canSubmit) return;
 
     const start = Number(startDay);
     const end = Number(endDay);
-    if (start > end) return;
 
     setIsSubmitting(true);
     try {
-      for (let day = start; day <= end; day++) {
-        const formData = new FormData();
-        formData.append("reportId", reportId);
-        formData.append("categoryCode", categoryCode);
-        formData.append("day", String(day));
-        formData.append("returnTo", returnTo);
-        await resetDayEntriesAction(formData);
+      const formData = new FormData();
+      formData.append("reportId", reportId);
+      formData.append("categoryCode", categoryCode);
+      formData.append("startDay", String(start));
+      formData.append("endDay", String(end));
+      formData.append("returnTo", returnTo);
+
+      const result = await resetDayEntriesRangeAction(formData);
+      if (!result.ok) {
+        throw new Error(result.error || "reset_failed");
       }
+
       setIsOpen(false);
       setStartDay("");
       setEndDay("");
       setIsSubmitting(false);
+      setToastMessage(`ลบข้อมูลเรียบร้อยแล้ว (${result.deleted} รายการ)`);
       router.refresh();
     } catch (err) {
       console.error(err);
@@ -63,9 +70,9 @@ export function ResetModal({
 
       {isOpen && (
         <div className="modal-overlay" onClick={() => !isSubmitting && setIsOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="reset-range-modal-title" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>รีเซ็ตข้อมูล</h2>
+              <h2 id="reset-range-modal-title">รีเซ็ตข้อมูล</h2>
               <button
                 type="button"
                 className="modal-close"
@@ -136,7 +143,7 @@ export function ResetModal({
                 <button
                   type="submit"
                   className="button danger"
-                  disabled={isSubmitting || !startDay || !endDay}
+                  disabled={isSubmitting || !canSubmit}
                 >
                   {isSubmitting ? "กำลังรีเซ็ต..." : "ยืนยันรีเซ็ต"}
                 </button>
@@ -144,6 +151,14 @@ export function ResetModal({
             </form>
           </div>
         </div>
+      )}
+
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          variant="error"
+          onClose={() => setToastMessage("")}
+        />
       )}
 
       <style jsx>{`

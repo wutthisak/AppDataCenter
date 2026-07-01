@@ -11,6 +11,7 @@ import "@fontsource/sarabun/600.css";
 import "@fontsource/sarabun/700.css";
 import "./globals.css";
 import { appName } from "@/lib/constants";
+import { ModalAutoScroller } from "@/components/ModalAutoScroller";
 
 export const metadata: Metadata = {
   title: appName,
@@ -20,7 +21,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th">
-      <body>{children}</body>
+      <body>
+        <ModalAutoScroller />
+        {children}
+      </body>
     </html>
   );
 }

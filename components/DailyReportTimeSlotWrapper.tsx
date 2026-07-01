@@ -4,7 +4,7 @@ import { createContext, useContext, useMemo, useState } from "react";
 import type { AssetCategoryCode, AssetStatusCode } from "@prisma/client";
 import { StatusForm } from "./StatusForm";
 import { BulkDayStatusForm } from "./BulkDayStatusForm";
-import { shiftDefaultSlots } from "@/lib/inspection-shifts";
+import { getDefaultInspectionSelection, shiftDefaultSlots } from "@/lib/inspection-shifts";
 
 const SHIFTS = [
   { value: "OFFICE_HOURS", label: "ในเวลาราชการ (08-16)" },
@@ -117,8 +117,9 @@ export function DailyReportTimeSlotWrapper({
   userId?: string;
   userRole?: string;
 }) {
-  const [selectedShift, setSelectedShift] = useState<string>("OFFICE_HOURS");
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlotValue>("SLOT_0800_0900");
+  const initialSelection = useMemo(() => getDefaultInspectionSelection(), []);
+  const [selectedShift, setSelectedShift] = useState<string>(initialSelection.shift);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlotValue>(initialSelection.timeSlot as TimeSlotValue);
   const [showOnlyUnrecorded, setShowOnlyUnrecorded] = useState(false);
 
   const visibleSlots = TIME_SLOTS.filter((s) => {
